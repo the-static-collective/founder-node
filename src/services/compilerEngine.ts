@@ -144,6 +144,11 @@ export async function compileFounderIntent(options: CompileOptions): Promise<Com
       const data = await response.json();
       if (data && data.understanding && data.architecturalCheck) {
         const primary = targets[0] ?? repositories.find(repo => repo.id === 'founder-node') ?? repositories[0];
+        const serverConflicts: AuthorityConflict[] = Array.isArray(data.architecturalCheck.authorityConflicts)
+          ? data.architecturalCheck.authorityConflicts
+          : [];
+        const serverBlocked = serverConflicts.some(conflict => conflict.severity === 'high');
+
         return {
           id: makeId('compiled'),
           rawText,
@@ -156,9 +161,12 @@ export async function compileFounderIntent(options: CompileOptions): Promise<Com
           architecturalCheck: {
             ...data.architecturalCheck,
             belongsTo: primary?.repository || data.architecturalCheck.belongsTo,
-            routingBlocked: false
+            authorityConflicts: serverConflicts,
+            routingBlocked: serverBlocked
           },
-          proposals: data.proposals || generateFallbackProposals(rawText, data.understanding, requestedProposalTypes, primary)
+          proposals: serverBlocked
+            ? []
+            : data.proposals || generateFallbackProposals(rawText, data.understanding, requestedProposalTypes, primary)
         };
       }
     }
