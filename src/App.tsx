@@ -10,13 +10,13 @@ import { DispatchQueue } from './components/DispatchQueue';
 import { ExecutionReceipts } from './components/ExecutionReceipts';
 import { ArchitecturalRulesModal } from './components/ArchitecturalRulesModal';
 
-import { 
-  CompiledIdea, 
-  Proposal, 
-  DispatchReceipt, 
-  Attachment, 
-  ProposalType, 
-  RepositoryId 
+import {
+  CompiledIdea,
+  Proposal,
+  DispatchReceipt,
+  Attachment,
+  ProposalType,
+  RepositoryId
 } from './types/founderNode';
 import { compileFounderIntent } from './services/compilerEngine';
 
@@ -74,10 +74,9 @@ export default function App() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setTimeout(() => setToastMessage(null), 5000);
   };
 
-  // Sync state to local-first storage
   useEffect(() => {
     if (lastCompiledIdea) {
       localStorage.setItem(STORAGE_KEY_IDEAS, JSON.stringify(lastCompiledIdea));
@@ -96,7 +95,6 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_RECEIPTS, JSON.stringify(receipts));
   }, [receipts]);
 
-  // Compile Intent Handler
   const handleCompile = async (
     rawText: string,
     attachments: Attachment[],
@@ -115,15 +113,23 @@ export default function App() {
       });
 
       setLastCompiledIdea(compiled);
-      
-      // Prepend new proposals
-      setProposals(prev => [...compiled.proposals, ...prev]);
 
-      showToast(`Compiled intent into ${compiled.proposals.length} proposal(s) with zero architectural drift.`);
+      if (compiled.architecturalCheck.routingBlocked) {
+        const reason = compiled.architecturalCheck.authorityConflicts[0]?.conflictReason
+          || compiled.architecturalCheck.guidance
+          || 'Authority Kit registry blocked this route.';
+        showToast(`Routing blocked: ${reason}`);
+        setActiveTab('memory');
+        return;
+      }
+
+      setProposals(prev => [...compiled.proposals, ...prev]);
+      showToast(`Compiled intent into ${compiled.proposals.length} proposal(s) inside declared authority boundaries.`);
       setActiveTab('proposals');
     } catch (err) {
       console.error('Compilation error:', err);
-      showToast('Error during intent compilation. Please check console.');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(`Compilation failed: ${message}`);
     } finally {
       setIsCompiling(false);
     }
@@ -134,11 +140,10 @@ export default function App() {
       sampleText,
       [],
       ['github_issue', 'specification', 'aistudio_prompt'],
-      ['haunted-toaster', 'tranchnode']
+      []
     );
   };
 
-  // Queue proposal for dispatch
   const handleQueueForDispatch = (proposal: Proposal) => {
     if (queuedProposals.some(p => p.id === proposal.id)) {
       showToast('Proposal is already in Dispatch Queue.');
@@ -146,51 +151,42 @@ export default function App() {
     }
 
     const updatedProposal: Proposal = { ...proposal, status: 'queued' };
-    
     setQueuedProposals(prev => [updatedProposal, ...prev]);
-    
     setProposals(prev => prev.map(p => p.id === proposal.id ? updatedProposal : p));
-
     showToast(`Queued "${proposal.title.substring(0, 30)}..." for Founder review.`);
   };
 
-  // Update Proposal content or parameters
   const handleUpdateProposal = (updated: Proposal) => {
     setProposals(prev => prev.map(p => p.id === updated.id ? updated : p));
     setQueuedProposals(prev => prev.map(p => p.id === updated.id ? updated : p));
   };
 
-  // Remove Proposal
   const handleDeleteProposal = (id: string) => {
     setProposals(prev => prev.filter(p => p.id !== id));
     setQueuedProposals(prev => prev.filter(p => p.id !== id));
     showToast('Proposal removed.');
   };
 
-  // Remove from Queue
   const handleRemoveFromQueue = (id: string) => {
     setQueuedProposals(prev => prev.filter(p => p.id !== id));
     setProposals(prev => prev.map(p => p.id === id ? { ...p, status: 'draft' } : p));
     showToast('Removed proposal from Dispatch Queue.');
   };
 
-  // Clear Queue
   const handleClearQueue = () => {
     setQueuedProposals([]);
     showToast('Dispatch Queue cleared.');
   };
 
-  // Clear Receipts
   const handleClearReceipts = () => {
     setReceipts([]);
     localStorage.removeItem(STORAGE_KEY_RECEIPTS);
     showToast('Receipts log cleared.');
   };
 
-  // Approve & Dispatch selected proposals
   const handleApproveAndDispatch = (proposalsToDispatch: Proposal[]) => {
     const now = new Date().toISOString();
-    
+
     const newReceipts: DispatchReceipt[] = proposalsToDispatch.map(prop => {
       const receiptHash = `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
 
@@ -217,7 +213,6 @@ export default function App() {
 
     setReceipts(prev => [...newReceipts, ...prev]);
 
-    // Update proposal statuses
     const dispatchedIds = proposalsToDispatch.map(p => p.id);
     setProposals(prev => prev.map(p => dispatchedIds.includes(p.id) ? { ...p, status: 'dispatched' } : p));
     setQueuedProposals(prev => prev.filter(p => !dispatchedIds.includes(p.id)));
@@ -228,7 +223,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050506] text-zinc-300 flex flex-col font-sans selection:bg-blue-500/30 selection:text-white">
-      {/* Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -239,17 +233,14 @@ export default function App() {
         onOpenRulesModal={() => setIsRulesModalOpen(true)}
       />
 
-      {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-20 right-5 z-50 px-4 py-3 bg-[#08080a] border border-blue-500/80 text-blue-300 text-xs font-mono rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.25)] flex items-center gap-2 animate-bounce">
-          <span className="w-2 h-2 rounded-full bg-blue-400" />
+        <div className="fixed bottom-20 right-5 z-50 max-w-xl px-4 py-3 bg-[#08080a] border border-blue-500/80 text-blue-300 text-xs font-mono rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.25)] flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Main Content Arena */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-8">
-        {/* TAB 1: COMMAND BRIDGE OVERVIEW */}
         {activeTab === 'bridge' && (
           <CommandBridgeOverview
             lastCompiledIdea={lastCompiledIdea}
@@ -262,7 +253,6 @@ export default function App() {
           />
         )}
 
-        {/* TAB 2: IDEA STREAM & COMPILER */}
         {activeTab === 'idea' && (
           <div className="space-y-8">
             <IdeaStream
@@ -270,7 +260,6 @@ export default function App() {
               isCompiling={isCompiling}
             />
 
-            {/* Display Understanding & Memory results if compiled */}
             {lastCompiledIdea && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <UnderstandingPanel understanding={lastCompiledIdea.understanding} />
@@ -283,7 +272,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: ARCHITECTURAL MEMORY */}
         {activeTab === 'memory' && (
           <div className="space-y-6">
             <ArchitecturalMemoryPanel
@@ -296,12 +284,10 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: REPOSITORY CONTEXT BROWSER */}
         {activeTab === 'repos' && (
           <RepositoryContextBrowser />
         )}
 
-        {/* TAB 5: PROPOSAL GENERATOR */}
         {activeTab === 'proposals' && (
           <ProposalGenerator
             proposals={proposals}
@@ -311,7 +297,6 @@ export default function App() {
           />
         )}
 
-        {/* TAB 6: DISPATCH QUEUE */}
         {activeTab === 'dispatch' && (
           <DispatchQueue
             queuedProposals={queuedProposals}
@@ -321,7 +306,6 @@ export default function App() {
           />
         )}
 
-        {/* TAB 7: EXECUTION RECEIPTS */}
         {activeTab === 'receipts' && (
           <ExecutionReceipts
             receipts={receipts}
@@ -330,45 +314,21 @@ export default function App() {
         )}
       </main>
 
-      {/* Rules & Ecosystem Laws Modal */}
       <ArchitecturalRulesModal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
       />
 
-      {/* Bottom Context Rail Footer */}
       <footer className="border-t border-zinc-800 bg-black/80 backdrop-blur-md py-3 px-6 text-xs font-mono text-zinc-500 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3 overflow-x-auto max-w-full">
-          <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">ACTIVE CONTEXT:</span>
-          <div className="flex gap-2 items-center">
-            <div className="h-7 px-2.5 bg-[#08080a] border border-zinc-800 rounded flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
-              <span className="text-[11px] text-zinc-300">Haunted Toaster</span>
-            </div>
-            <div className="h-7 px-2.5 bg-[#08080a] border border-zinc-800 rounded flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
-              <span className="text-[11px] text-zinc-300">Band Runtime</span>
-            </div>
-            <div className="h-7 px-2.5 bg-[#08080a] border border-zinc-800 rounded flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-              <span className="text-[11px] text-zinc-300">Project0 Identity</span>
-            </div>
-            <div className="h-7 px-2.5 bg-[#08080a] border border-zinc-800 rounded flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
-              <span className="text-[11px] text-zinc-300">TranchNode</span>
-            </div>
+          <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">AUTHORITY SOURCE:</span>
+          <div className="h-7 px-2.5 bg-[#08080a] border border-zinc-800 rounded flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+            <span className="text-[11px] text-zinc-300">jubilee-authority-kit / registry/projects.json</span>
           </div>
         </div>
 
         <div className="flex items-center gap-6 text-[10px] text-zinc-500">
-          <div className="flex gap-1 items-center">
-            <span className="w-1 h-3 bg-zinc-800"></span>
-            <span className="w-1 h-5 bg-blue-600"></span>
-            <span className="w-1 h-2 bg-zinc-800"></span>
-            <span className="w-1 h-4 bg-blue-400"></span>
-            <span className="ml-1 uppercase tracking-tighter text-zinc-400">Network Sync</span>
-          </div>
-          <div>MEM: <strong className="text-zinc-300">4.2GB / 16.0GB</strong></div>
           <div className="hidden sm:block text-zinc-600">PROPOSAL AUTHORITY ONLY</div>
         </div>
       </footer>
