@@ -44,6 +44,14 @@ const phraseMatchesIntent = (intent: string, phrase: string) => {
 const revivalRequested = (intent: string) =>
   /\b(revive|revival|reactivate|re-activate|resurrect|restore to active|bring back)\b/i.test(intent);
 
+const isLegacyDefaultSelection = (rawText: string, selectedTargetRepos: RepositoryId[]) => {
+  const selected = new Set(selectedTargetRepos);
+  const isLegacyPair = selected.size === 2 && selected.has('haunted-toaster') && selected.has('tranchnode');
+  if (!isLegacyPair) return false;
+  const intent = normalize(rawText);
+  return !intent.includes('haunted toaster') && !intent.includes('tranchnode') && !intent.includes('tranch node');
+};
+
 function resolveTargets(
   rawText: string,
   selectedTargetRepos: RepositoryId[],
@@ -51,7 +59,7 @@ function resolveTargets(
 ): RepositoryContext[] {
   const byId = new Map(repositories.map(repo => [repo.id, repo]));
   const selected = selectedTargetRepos.map(id => byId.get(id)).filter(Boolean) as RepositoryContext[];
-  if (selected.length) return selected;
+  if (selected.length && !isLegacyDefaultSelection(rawText, selectedTargetRepos)) return selected;
 
   const normalizedIntent = normalize(rawText);
   const direct = repositories.filter(repo => {
