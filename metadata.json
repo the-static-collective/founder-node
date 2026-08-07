@@ -1,0 +1,6 @@
+{
+  "name": "Founder Node",
+  "description": "Operating console for The Static Collective. Translates founder intent into structured, reviewable, executable work across multiple systems while preserving architectural boundaries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
