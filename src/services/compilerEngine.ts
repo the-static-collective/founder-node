@@ -1,14 +1,16 @@
-import { 
-  CompiledIdea, 
-  UnderstandingStage, 
-  ArchitecturalCheckResult, 
-  Proposal, 
-  ProposalType, 
+import {
+  Attachment,
+  ArchitecturalCheckResult,
+  AuthorityConflict,
+  CompiledIdea,
   DispatchTarget,
+  Proposal,
+  ProposalType,
+  RepositoryContext,
   RepositoryId,
-  Attachment 
+  UnderstandingStage
 } from '../types/founderNode';
-import { COLLECTIVE_REPOSITORIES } from '../data/mockCollectiveRepos';
+import { loadCollectiveRepositories } from '../data/authorityKitRegistry';
 
 export interface CompileOptions {
   rawText: string;
@@ -18,15 +20,113 @@ export interface CompileOptions {
   architecturalMemoryEnabled?: boolean;
 }
 
+interface RoutingResult {
+  targets: RepositoryContext[];
+  conflicts: AuthorityConflict[];
+  blocked: boolean;
+}
+
+const normalize = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+const significantTokens = (value: string) =>
+  normalize(value).split(' ').filter(token => token.length >= 4);
+
+const phraseMatchesIntent = (intent: string, phrase: string) => {
+  const normalizedIntent = normalize(intent);
+  const normalizedPhrase = normalize(phrase);
+  if (!normalizedPhrase) return false;
+  if (normalizedIntent.includes(normalizedPhrase)) return true;
+  const tokens = significantTokens(phrase);
+  return tokens.length > 0 && tokens.every(token => normalizedIntent.includes(token));
+};
+
+const revivalRequested = (intent: string) =>
+  /\b(revive|revival|reactivate|re-activate|resurrect|restore to active|bring back)\b/i.test(intent);
+
+const isLegacyDefaultSelection = (rawText: string, selectedTargetRepos: RepositoryId[]) => {
+  const selected = new Set(selectedTargetRepos);
+  const isLegacyPair = selected.size === 2 && selected.has('haunted-toaster') && selected.has('tranchnode');
+  if (!isLegacyPair) return false;
+  const intent = normalize(rawText);
+  return !intent.includes('haunted toaster') && !intent.includes('tranchnode') && !intent.includes('tranch node');
+};
+
+function resolveTargets(
+  rawText: string,
+  selectedTargetRepos: RepositoryId[],
+  repositories: RepositoryContext[]
+): RepositoryContext[] {
+  const byId = new Map(repositories.map(repo => [repo.id, repo]));
+  const selected = selectedTargetRepos.map(id => byId.get(id)).filter(Boolean) as RepositoryContext[];
+  if (selected.length && !isLegacyDefaultSelection(rawText, selectedTargetRepos)) return selected;
+
+  const normalizedIntent = normalize(rawText);
+  const direct = repositories.filter(repo => {
+    const repoLeaf = repo.repository.split('/').pop() || repo.id;
+    return normalizedIntent.includes(normalize(repo.id)) || normalizedIntent.includes(normalize(repoLeaf));
+  });
+  if (direct.length) return direct;
+
+  const scored = repositories
+    .map(repo => {
+      const phrases = [repo.role, ...repo.owns];
+      const score = phrases.reduce((sum, phrase) => sum + (phraseMatchesIntent(rawText, phrase) ? 1 : 0), 0);
+      return { repo, score };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.repo);
+
+  if (scored.length) return scored.slice(0, 3);
+  const founderNode = byId.get('founder-node');
+  return founderNode ? [founderNode] : [];
+}
+
+function checkRouting(rawText: string, targets: RepositoryContext[]): RoutingResult {
+  const conflicts: AuthorityConflict[] = [];
+  const explicitRevival = revivalRequested(rawText);
+
+  for (const repo of targets) {
+    if ((repo.status === 'ancestor' || repo.status === 'monument' || repo.kind === 'lineage-ancestor') && !explicitRevival) {
+      conflicts.push({
+        repository: repo.repository,
+        conflictReason: `${repo.id} is classified as ${repo.status}/${repo.kind}. Routing work there requires an explicit revival instruction.`,
+        severity: 'high'
+      });
+    }
+
+    for (const deniedCapability of repo.nonAuthority) {
+      if (phraseMatchesIntent(rawText, deniedCapability)) {
+        conflicts.push({
+          repository: repo.repository,
+          conflictReason: `Intent targets declared non-authority: "${deniedCapability}". Route that capability to its owning repository instead.`,
+          severity: 'high'
+        });
+      }
+    }
+  }
+
+  return { targets, conflicts, blocked: conflicts.some(conflict => conflict.severity === 'high') };
+}
+
 export async function compileFounderIntent(options: CompileOptions): Promise<CompiledIdea> {
   const {
     rawText,
     attachments = [],
+    selectedTargetRepos = [],
     requestedProposalTypes = ['github_issue', 'specification', 'aistudio_prompt'],
     architecturalMemoryEnabled = true
   } = options;
 
-  // Attempt server-side API compilation with Gemini
+  const repositories = await loadCollectiveRepositories();
+  const targets = resolveTargets(rawText, selectedTargetRepos, repositories);
+  const routing = checkRouting(rawText, targets);
+
+  if (routing.blocked) {
+    return blockedCompilation(rawText, attachments, routing);
+  }
+
   try {
     const response = await fetch('/api/compile-intent', {
       method: 'POST',
@@ -35,6 +135,7 @@ export async function compileFounderIntent(options: CompileOptions): Promise<Com
         rawText,
         attachmentsSummary: attachments.map(a => `${a.type}: ${a.name}`).join(', '),
         requestedProposalTypes,
+        selectedTargetRepos: targets.map(repo => repo.id),
         architecturalMemoryEnabled
       })
     });
@@ -42,156 +143,127 @@ export async function compileFounderIntent(options: CompileOptions): Promise<Com
     if (response.ok) {
       const data = await response.json();
       if (data && data.understanding && data.architecturalCheck) {
+        const primary = targets[0] ?? repositories.find(repo => repo.id === 'founder-node') ?? repositories[0];
+        const serverConflicts: AuthorityConflict[] = Array.isArray(data.architecturalCheck.authorityConflicts)
+          ? data.architecturalCheck.authorityConflicts
+          : [];
+        const serverBlocked = serverConflicts.some(conflict => conflict.severity === 'high');
+
         return {
-          id: `compiled-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          id: makeId('compiled'),
           rawText,
           createdAt: new Date().toISOString(),
           attachments,
-          understanding: data.understanding,
-          architecturalCheck: data.architecturalCheck,
-          proposals: data.proposals || generateFallbackProposals(rawText, data.understanding, requestedProposalTypes)
+          understanding: {
+            ...data.understanding,
+            potentialRepositories: targets.map(repo => repo.id)
+          },
+          architecturalCheck: {
+            ...data.architecturalCheck,
+            belongsTo: primary?.repository || data.architecturalCheck.belongsTo,
+            authorityConflicts: serverConflicts,
+            routingBlocked: serverBlocked
+          },
+          proposals: serverBlocked
+            ? []
+            : data.proposals || generateFallbackProposals(rawText, data.understanding, requestedProposalTypes, primary)
         };
       }
     }
   } catch {
-    console.info('Server endpoint unavailable or fallback mode active. Compiling intent locally...');
+    console.info('Server endpoint unavailable. Compiling against Authority Kit registry locally.');
   }
 
-  // Local-first deterministic Intent Compiler Engine
-  return compileLocally(rawText, attachments, requestedProposalTypes, architecturalMemoryEnabled);
+  return compileLocally(rawText, attachments, requestedProposalTypes, routing, architecturalMemoryEnabled);
+}
+
+function blockedCompilation(rawText: string, attachments: Attachment[], routing: RoutingResult): CompiledIdea {
+  const targetNames = routing.targets.map(repo => repo.repository);
+  return {
+    id: makeId('compiled'),
+    rawText,
+    createdAt: new Date().toISOString(),
+    attachments,
+    understanding: {
+      observedFacts: [`Founder intent targets: ${targetNames.join(', ') || 'no resolved repository'}.`],
+      goals: ['Route the requested work without violating declared repository authority boundaries.'],
+      constraints: routing.conflicts.map(conflict => conflict.conflictReason),
+      unknowns: [],
+      potentialRepositories: routing.targets.map(repo => repo.id),
+      dependencies: [],
+      risks: ['Dispatching this intent as written would cross a declared authority boundary.'],
+      suggestedSlice: 'Resolve the authority conflict or explicitly revive the historical repository before generating work.'
+    },
+    architecturalCheck: {
+      belongsTo: targetNames.join(', ') || 'unresolved',
+      isNewWork: true,
+      isAlreadySolved: false,
+      isDuplicated: false,
+      existingIssue: null,
+      authorityConflicts: routing.conflicts,
+      dependenciesAndBlockers: routing.conflicts.map(conflict => conflict.conflictReason),
+      guidance: routing.conflicts[0]?.conflictReason || 'Routing blocked by Authority Kit registry.',
+      architecturalMemoryFlags: routing.conflicts.map(conflict => `BLOCKED: ${conflict.conflictReason}`),
+      routingBlocked: true
+    },
+    proposals: []
+  };
 }
 
 function compileLocally(
   rawText: string,
   attachments: Attachment[],
   requestedTypes: ProposalType[],
+  routing: RoutingResult,
   memoryEnabled: boolean
 ): CompiledIdea {
-  const textLower = rawText.toLowerCase();
-
-  // Detect relevant repos
-  const potentialRepos: RepositoryId[] = [];
-  if (textLower.includes('toaster') || textLower.includes('haunted') || textLower.includes('imagination') || textLower.includes('creative')) {
-    potentialRepos.push('haunted-toaster');
-  }
-  if (textLower.includes('audio') || textLower.includes('music') || textLower.includes('band') || textLower.includes('dsp') || textLower.includes('sound')) {
-    potentialRepos.push('band-runtime');
-  }
-  if (textLower.includes('tranch') || textLower.includes('slice') || textLower.includes('worker') || textLower.includes('render') || textLower.includes('node')) {
-    potentialRepos.push('tranchnode');
-  }
-  if (textLower.includes('identity') || textLower.includes('key') || textLower.includes('project0') || textLower.includes('auth') || textLower.includes('canonical')) {
-    potentialRepos.push('project0');
-  }
-  if (textLower.includes('visual') || textLower.includes('ui') || textLower.includes('lab') || textLower.includes('shader')) {
-    potentialRepos.push('toaster-lab');
-  }
-  if (textLower.includes('telemetry') || textLower.includes('monitor') || textLower.includes('health') || textLower.includes('nose')) {
-    potentialRepos.push('tranchnose');
-  }
-  if (textLower.includes('feedback') || textLower.includes('return') || textLower.includes('loop') || textLower.includes('recoreturn')) {
-    potentialRepos.push('recoreturn');
-  }
-  if (potentialRepos.length === 0) {
-    potentialRepos.push('haunted-toaster', 'tranchnode');
-  }
-
-  // Extract Understanding Stage
+  const primary = routing.targets[0];
+  const targetIds = routing.targets.map(repo => repo.id);
   const understanding: UnderstandingStage = {
     observedFacts: [
       `Raw intention expressed: "${rawText.substring(0, 90)}${rawText.length > 90 ? '...' : ''}"`,
-      `Context includes ${attachments.length} attachment(s) and multi-modal assets.`,
-      `Ecosystem domain touches: ${potentialRepos.map(r => COLLECTIVE_REPOSITORIES.find(repo => repo.id === r)?.name).join(', ')}.`
+      `Authority Kit registry resolved target(s): ${targetIds.join(', ') || 'none'}.`,
+      `Context includes ${attachments.length} attachment(s).`
     ],
-    goals: [
-      `Translate raw founder thought into reviewable architectural proposals.`,
-      `Preserve authority boundaries across ${potentialRepos.join(', ')}.`,
-      `Prepare actionable specifications for downstream execution systems.`
-    ],
+    goals: ['Translate founder intent into reviewable proposals while preserving repository ownership.'],
     constraints: [
-      `Proposal Authority Only: Application cannot execute external code directly without human approval.`,
-      `Architectural Boundary Law: Upstream systems cannot own runtime execution law.`,
-      `Local-First Auditability: Every proposal must generate a traceable receipt.`
+      'Founder Node proposes work; it does not acquire downstream execution authority.',
+      ...(primary ? primary.nonAuthority.map(item => `${primary.id} does not own: ${item}`) : [])
     ],
-    unknowns: [
-      `Specific API schema version for external dispatch targets.`,
-      `Target repository milestone assignment and priority slice sequence.`
-    ],
-    potentialRepositories: potentialRepos,
-    dependencies: [
-      textLower.includes('render') || textLower.includes('video') ? 'TranchNode #7 worker isolation protocol' : 'Project0 canonical key verification'
-    ],
-    risks: [
-      `Architectural drift if execution authority is conflated across nodes.`,
-      `Duplicate effort across ${potentialRepos.length > 1 ? potentialRepos.join(' and ') : 'downstream systems'}.`
-    ],
-    suggestedSlice: `Slice 1: Create specification and GitHub Issue for ${potentialRepos[0]}. Slice 2: Generate AI Studio / downstream execution prompts.`
+    unknowns: [],
+    potentialRepositories: targetIds,
+    dependencies: primary?.relations.map(relation => `${relation.type} ${relation.target}`) ?? [],
+    risks: primary ? [`Authority drift if work exceeds ${primary.id}'s declared owns boundary.`] : ['No repository target resolved.'],
+    suggestedSlice: primary
+      ? `Create the smallest falsifiable slice inside ${primary.repository}; stop before crossing its nonAuthority boundary.`
+      : 'Clarify the owning repository before dispatch.'
   };
-
-  // Architectural Memory Checks
-  const memoryFlags: string[] = [];
-  const authorityConflicts = [];
-
-  if (memoryEnabled) {
-    if (textLower.includes('haunted toaster') && (textLower.includes('execute') || textLower.includes('deploy') || textLower.includes('run code'))) {
-      memoryFlags.push('⚠️ Haunted Toaster owns upstream imagination only. It must NEVER own execution law.');
-      authorityConflicts.push({
-        repository: 'Haunted Toaster',
-        conflictReason: 'Attempting to assign execution law to Haunted Toaster violates Ecosystem Rule #1.',
-        severity: 'high' as const
-      });
-    }
-
-    if (textLower.includes('identity') || textLower.includes('auth') || textLower.includes('user login')) {
-      memoryFlags.push('⚠️ Project0 already defines canonical identity and key registry for the network.');
-      authorityConflicts.push({
-        repository: 'Project0',
-        conflictReason: 'Core identity must originate from Project0 key authority.',
-        severity: 'medium' as const
-      });
-    }
-
-    if (textLower.includes('audio') || textLower.includes('stem') || textLower.includes('dsp')) {
-      memoryFlags.push('ℹ️ Band Runtime should consume audio specs, not implement bespoke user management.');
-    }
-
-    if (textLower.includes('tranch') || textLower.includes('worker') || textLower.includes('isolation')) {
-      memoryFlags.push('⏳ Notice: Work in this slice is blocked until TranchNode #7 lands.');
-    }
-
-    if (memoryFlags.length === 0) {
-      memoryFlags.push('✅ Architecture Verified: No conflicting authority domains detected in ecosystem memory.');
-    }
-  }
-
-  const primaryRepo = potentialRepos[0] || 'haunted-toaster';
-  const repoData = COLLECTIVE_REPOSITORIES.find(r => r.id === primaryRepo);
 
   const architecturalCheck: ArchitecturalCheckResult = {
-    belongsTo: repoData?.name || 'Haunted Toaster',
-    isNewWork: !textLower.includes('update') && !textLower.includes('fix'),
+    belongsTo: primary?.repository || 'unresolved',
+    isNewWork: true,
     isAlreadySolved: false,
-    isDuplicated: authorityConflicts.length > 0,
-    existingIssue: repoData?.openIssues[0] ? `#${repoData.openIssues[0].id} (${repoData.openIssues[0].title})` : null,
-    authorityConflicts,
-    dependenciesAndBlockers: [
-      textLower.includes('tranch') ? 'TranchNode #7 (Worker Isolation)' : 'Project0 #16 (Canonical Authority Registration)'
-    ],
-    guidance: `Assign task authority to ${repoData?.name || 'primary repo'}. Ensure outputs are published as proposals for Founder review before dispatching.`,
-    architecturalMemoryFlags: memoryFlags
+    isDuplicated: false,
+    existingIssue: null,
+    authorityConflicts: [],
+    dependenciesAndBlockers: understanding.dependencies,
+    guidance: primary
+      ? `Route only work owned by ${primary.repository}: ${primary.owns.join(', ') || 'no positive authority claims declared'}.`
+      : 'No owner resolved from the registry.',
+    architecturalMemoryFlags: memoryEnabled
+      ? [`Registry authority verified for ${targetIds.join(', ') || 'no target'}.`]
+      : [],
+    routingBlocked: false
   };
 
-  // Generate Proposals
-  const proposals = generateFallbackProposals(rawText, understanding, requestedTypes, primaryRepo);
-
   return {
-    id: `compiled-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    id: makeId('compiled'),
     rawText,
     createdAt: new Date().toISOString(),
     attachments,
     understanding,
     architecturalCheck,
-    proposals
+    proposals: primary ? generateFallbackProposals(rawText, understanding, requestedTypes, primary) : []
   };
 }
 
@@ -199,148 +271,59 @@ function generateFallbackProposals(
   rawText: string,
   understanding: UnderstandingStage,
   requestedTypes: ProposalType[],
-  primaryRepo: RepositoryId = 'haunted-toaster'
+  primaryRepo: RepositoryContext
 ): Proposal[] {
   const now = new Date().toISOString();
-  const repoData = COLLECTIVE_REPOSITORIES.find(r => r.id === primaryRepo);
 
-  const proposals: Proposal[] = [];
-
-  requestedTypes.forEach((type, idx) => {
+  return requestedTypes.map((type, idx) => {
     let title = '';
     let content = '';
-    let defaultTarget: DispatchTarget = 'github';
+    let dispatchTarget: DispatchTarget = 'github';
 
     switch (type) {
       case 'github_issue':
-        title = `feat(${primaryRepo}): ${rawText.substring(0, 55).replace(/\n/g, ' ')}`;
-        defaultTarget = 'github';
-        content = `## Overview
-${rawText}
-
-## Observed Facts & Context
-${understanding.observedFacts.map(f => `- ${f}`).join('\n')}
-
-## Proposed Architectural Scope
-- **Target Repository**: \`${primaryRepo}\` (${repoData?.authorityDomain || 'Primary Domain'})
-- **Suggested Slice**: ${understanding.suggestedSlice}
-
-## Actionable Tasks
-- [ ] Parse intent into modular interface definitions
-- [ ] Review authority boundaries against ${primaryRepo} laws
-- [ ] Implement slice in isolated feature branch
-- [ ] Submit PR receipt back to Founder Node
-
-## Constraints & Laws
-${repoData?.laws.map(l => `- ${l}`).join('\n') || '- Proposal authority human review required.'}`;
+        title = `feat(${primaryRepo.id}): ${rawText.substring(0, 55).replace(/\n/g, ' ')}`;
+        content = `## Purpose\n\n${rawText}\n\n## Authority boundary\n\nOwner: \`${primaryRepo.repository}\`\n\nOwns: ${primaryRepo.owns.join(', ') || 'none declared'}\n\nMust not claim: ${primaryRepo.nonAuthority.join(', ') || 'none declared'}\n\n## Dependencies\n\n${understanding.dependencies.map(item => `- ${item}`).join('\n') || '- none declared'}\n\n## Acceptance proof\n\n- [ ] Add one falsifiable executable proof for the requested behavior.\n- [ ] Show that the proof remains inside the declared authority boundary.\n\n## Non-goals\n\n- Do not move authority from another repository into this one.\n- Do not widen the slice beyond the requested capability.\n\n## Stop condition\n\nStop when the acceptance proof passes and no declared nonAuthority capability is required.`;
         break;
-
       case 'specification':
-        title = `Spec: ${primaryRepo.toUpperCase()} Architectural Specification`;
-        defaultTarget = 'markdown';
-        content = `# Architectural Specification: ${primaryRepo} Integration
-
-## Intention Statement
-> "${rawText}"
-
-## System Goals
-${understanding.goals.map(g => `1. ${g}`).join('\n')}
-
-## Ecosystem Constraints
-${understanding.constraints.map(c => `- ${c}`).join('\n')}
-
-## Technical Slice Requirements
-- **Primary Domain Owner**: \`${primaryRepo}\`
-- **Dependencies**: ${understanding.dependencies.join(', ')}
-- **Risk Mitigation**: ${understanding.risks.join('; ')}
-
-## Receipt Verification Strategy
-Upon dispatch, downstream system must emit a cryptographic execution receipt verified against Project0 identity rules.`;
+        dispatchTarget = 'markdown';
+        title = `Spec: ${primaryRepo.id} bounded implementation`;
+        content = `# ${primaryRepo.repository}\n\n## Intent\n${rawText}\n\n## Owner\n${primaryRepo.repository}\n\n## Authority\n${primaryRepo.owns.map(item => `- ${item}`).join('\n')}\n\n## Non-authority\n${primaryRepo.nonAuthority.map(item => `- ${item}`).join('\n')}\n\n## Suggested slice\n${understanding.suggestedSlice}`;
         break;
-
       case 'aistudio_prompt':
-        title = `AI Studio Prompt: ${primaryRepo} Upstream Imagination Engine`;
-        defaultTarget = 'aistudio';
-        content = `SYSTEM INSTRUCTION:
-You are the Technical Project Architect for The Static Collective (${primaryRepo}).
-Your responsibility is to translate raw founder intention into structured JSON payloads for downstream review.
-
-FOUNDER INPUT:
-${rawText}
-
-RELEVANT CONTEXT:
-${repoData?.readme || 'Standard Static Collective Repo'}
-
-TASK:
-1. Break down the input into structured sub-tasks.
-2. Ensure no execution law is assumed by upstream nodes.
-3. Emit structured JSON matching Founder Node proposal schema.`;
+        dispatchTarget = 'aistudio';
+        title = `AI Studio Prompt: ${primaryRepo.id} proposal work`;
+        content = `You are proposing work for ${primaryRepo.repository}.\n\nFounder intent:\n${rawText}\n\nThis repository owns:\n${primaryRepo.owns.map(item => `- ${item}`).join('\n')}\n\nIt explicitly does not own:\n${primaryRepo.nonAuthority.map(item => `- ${item}`).join('\n')}\n\nGenerate proposal material only. Do not silently acquire any non-authority capability.`;
         break;
-
       case 'lovable_prompt':
-        title = `Lovable Prompt: Full UI Component Prototype`;
-        defaultTarget = 'lovable';
-        content = `Create a dark, minimal, mission-control style web application module for The Static Collective.
-Module Purpose: ${rawText.substring(0, 120)}
-Theme: Dark zinc/slate (#090d16), crisp mono accents, high-contrast status chips, no avatars or emojis.
-Features: Real-time update panels, action buttons with receipt logs, clean typographic hierarchy.`;
+        dispatchTarget = 'lovable';
+        title = `Lovable Prompt: ${primaryRepo.id}`;
+        content = `Build only the UI/product slice described here: ${rawText}\nRespect ${primaryRepo.repository}'s authority boundary and do not implement: ${primaryRepo.nonAuthority.join(', ')}.`;
         break;
-
       case 'bolt_prompt':
-        title = `Bolt Prompt: Standalone Micro-Node Service`;
-        defaultTarget = 'bolt';
-        content = `Build an isolated Node.js/TypeScript micro-service for ${primaryRepo}.
-Requirements:
-- Parse incoming webhook events
-- Process data according to: ${rawText}
-- Emit verified completion receipt payload to Founder Node
-- Clean error handling with fallback states`;
+        dispatchTarget = 'bolt';
+        title = `Bolt Prompt: ${primaryRepo.id}`;
+        content = `Implement the smallest bounded code slice for ${primaryRepo.repository}: ${rawText}\nDo not absorb authority for: ${primaryRepo.nonAuthority.join(', ')}.`;
         break;
-
-      case 'architecture_note':
-        title = `Architecture Note: Authority Boundaries & Memory Map`;
-        defaultTarget = 'markdown';
-        content = `# Architectural Memory Decision Log
-
-## Proposal Target: ${primaryRepo}
-## Date: ${new Date().toLocaleDateString()}
-
-### Context & Intent
-${rawText}
-
-### Authority Mapping
-- **Upstream Intent**: Captured in Founder Node
-- **Authority Owner**: ${repoData?.name || primaryRepo}
-- **Boundary Verification**: Passed architectural check with zero drift warnings.
-
-### Recommendations
-1. Maintain strict decoupling between imagination and execution.
-2. Require human approval in Dispatch Queue before triggering external API payloads.`;
-        break;
-
       default:
-        title = `Proposal (${type}): ${primaryRepo} Work Item`;
-        defaultTarget = 'github';
-        content = `## Proposal Summary
-${rawText}
-
-## Target Ecosystem
-${primaryRepo}`;
+        dispatchTarget = 'markdown';
+        title = `${type.replace(/_/g, ' ')}: ${primaryRepo.id}`;
+        content = `${rawText}\n\nOwner: ${primaryRepo.repository}\nAuthority boundary: ${primaryRepo.owns.join(', ')}\nNon-authority: ${primaryRepo.nonAuthority.join(', ')}`;
         break;
     }
 
-    proposals.push({
-      id: `prop-${Date.now()}-${idx}`,
+    return {
+      id: `${makeId('prop')}-${idx}`,
       type,
       title,
-      targetRepo: primaryRepo,
+      targetRepo: primaryRepo.id,
       content,
-      summary: `Proposes ${type.replace(/_/g, ' ')} for ${primaryRepo} based on founder intent.`,
+      summary: `Proposal for ${primaryRepo.repository}, bounded by Authority Kit registry declarations.`,
       status: 'draft',
       createdAt: now,
-      dispatchTarget: defaultTarget
-    });
+      dispatchTarget
+    };
   });
-
-  return proposals;
 }
+
+const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;

@@ -1,14 +1,33 @@
-export type RepositoryId = 
-  | 'haunted-toaster'
-  | 'band-runtime'
-  | 'tranchnode'
-  | 'project0'
-  | 'toaster-lab'
-  | 'tranchnose'
-  | 'recoreturn';
+export type RepositoryId = string;
+
+export type RepositoryStatus = 'active' | 'seed' | 'dormant' | 'ancestor' | 'monument' | 'unresolved';
+export type RepositoryKind =
+  | 'constitutional-substrate'
+  | 'shared-protocol'
+  | 'domain-kernel'
+  | 'proposal-discovery'
+  | 'embodiment'
+  | 'research-kernel'
+  | 'control-plane'
+  | 'lineage-ancestor'
+  | 'concept-donor'
+  | 'unresolved';
+
+export interface RepositoryRelation {
+  type: string;
+  target: RepositoryId;
+  note?: string;
+}
 
 export interface RepositoryContext {
   id: RepositoryId;
+  repository: string;
+  kind: RepositoryKind;
+  status: RepositoryStatus;
+  role: string;
+  owns: string[];
+  nonAuthority: string[];
+  relations: RepositoryRelation[];
   name: string;
   description: string;
   authorityDomain: string;
@@ -66,6 +85,7 @@ export interface ArchitecturalCheckResult {
   dependenciesAndBlockers: string[];
   guidance: string;
   architecturalMemoryFlags: string[];
+  routingBlocked?: boolean;
 }
 
 export type ProposalType =
