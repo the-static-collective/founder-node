@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved concept; written design awaiting explicit review before implementation planning.
+Approved concept; self-reviewed written design awaiting explicit user review before implementation planning.
 
 ## Purpose
 
@@ -17,46 +17,59 @@ This is a local BEE transplant from the proven jublEchat Nearby Growth pattern: 
 ## Evidence motivating the slice
 
 - Founder Node PR #1 is merged and already reads `jubilee-authority-kit/registry/projects.json` for project roles, typed relations, status, `owns`, and `nonAuthority` boundaries.
+- The current Founder Node loader reads only `projects.json`; it does not yet expose Authority Kit `registry/invariants.json` or registry observation metadata to downstream projections.
 - Jubilee Authority Kit already carries a federated `registry/invariants.json` whose claims point back to project-owned proof and name known consumers.
 - jublEchat PR #4 proved a deterministic `Nearby Growth` projection from explicit lineage/friction evidence while refusing embeddings, AI inference, persistence, and opaque relevance scoring.
 - The BEE Protocol already states that a proven invariant may cross repositories only as evidence/pollen; donor authority must remain behind and the recipient must prove the transplant locally.
-- Authority Kit registry metadata predates several newly landed executable proofs. v0.1 must surface registry provenance/freshness rather than silently pretending the registry is exhaustive.
+- Authority Kit registry metadata predates several newly landed executable proofs. v0.1 must expose the registry pair it actually observed rather than silently pretending the registries are exhaustive or atomically current.
 
 ## Scope
 
 ### In scope
 
-1. Add one pure Founder Node projection, tentatively named `deriveNearbyGrowth(...)`.
-2. Consume only the already-declared Authority Kit project and invariant registries.
-3. Return zero to three explainable neighboring project doors after the ordinary routing decision.
-4. Preserve the exact evidence classes that admitted each suggestion.
-5. Preserve hard `nonAuthority` and historical-project stop rules already enforced by Founder Node.
-6. Surface the Authority Kit registry snapshot metadata used for the projection so staleness is inspectable.
-7. Add deterministic tests proving both positive suggestions and legitimate empty states.
-8. Perform a bounded Authority Kit **freshness reconciliation** before the proof specimen only when a needed registry fact is demonstrably stale; no schema expansion is required for this slice.
+1. Extend Founder Node's Authority Kit loader so one read boundary can expose:
+   - project records;
+   - proven invariant records;
+   - the independent `version` / `updated` metadata observed from each registry document.
+2. Preserve the existing `loadCollectiveRepositories()` behavior for current callers.
+3. Add one pure Founder Node projection, tentatively named `deriveNearbyGrowth(...)`.
+4. Consume only Authority Kit registry data already represented in `projects.json` and `invariants.json`.
+5. Return zero to three explainable neighboring project doors after the ordinary routing decision.
+6. Preserve the exact evidence that admitted each suggestion.
+7. Preserve the existing authority gate by deriving nearby growth only after `routingBlocked === false`.
+8. Add deterministic tests proving positive suggestions, invariant-only suggestions, and legitimate empty states.
+9. Perform a bounded Authority Kit freshness reconciliation only if a load-bearing acceptance fact is demonstrably stale; no schema or relation-vocabulary expansion is required for this slice.
 
 ### Out of scope
 
 - automatic dispatch, issue creation, PR creation, or repository mutation from a suggestion;
 - embeddings, semantic similarity, LLM relevance scoring, or taxonomy-only proximity;
+- interpreting free-text `owns` / `nonAuthority` strings inside the Nearby Growth projection;
 - a universal recommendation engine;
 - a shared runtime package consumed by every repository;
 - automatic adoption of a donor invariant by a recipient;
 - changing domain authority, canonical identity, artifact custody, or execution law;
 - standardizing `PollenReceipt` v1;
 - crawling arbitrary GitHub/GitBook content at runtime;
-- treating Authority Kit as exhaustive truth about the ecosystem.
+- treating Authority Kit as exhaustive truth about the ecosystem;
+- claiming the separately fetched project and invariant documents form an atomic Git commit snapshot.
 
 ## Architecture
 
 ```text
 founder intent
     ↓
-existing compile / authority routing
+existing resolveTargets(...)
+    ↓
+existing checkRouting(...)
+    ↓
+blocked? ── yes ──> existing blocked result; no Nearby Growth
+    │
+    no
     ↓
 routed project target(s)
-    ↓
-Authority Kit registry snapshot
+    +
+Authority Kit registry witness
     ├── projects.json
     │    ├── typed relations
     │    ├── owns
@@ -75,55 +88,95 @@ deriveNearbyGrowth(...)
 human attention only
 ```
 
-The projection does not participate in the existing authority decision. Ordinary routing finishes first. Nearby Growth is derived afterward from the same witnessed registry context.
+The projection does not participate in the authority decision. Existing routing completes first. Nearby Growth is derived afterward from the same project registry context plus the invariant registry.
 
-## Input contract
+## Registry witness boundary
+
+Founder Node currently fetches `projects.json` directly from Authority Kit `main`. v0.1 may add a second direct read of `invariants.json`, but must describe the result honestly.
+
+The two remote files are an **observed registry pair**, not an atomic source snapshot. They may theoretically change between requests.
+
+The loader therefore exposes metadata equivalent to:
+
+```ts
+type AuthorityRegistryWitness = {
+  projects: {
+    version: number;
+    updated: string;
+    source: string;
+  };
+  invariants: {
+    version: number;
+    updated: string;
+    source: string;
+  };
+};
+```
+
+No commit SHA is invented when one was not actually observed.
+
+Projection determinism is defined over the supplied parsed registry documents. Network freshness is a separate provenance concern.
+
+## Loader compatibility
+
+Introduce a richer loader boundary equivalent to:
+
+```ts
+type AuthorityRegistryBundle = {
+  repositories: RepositoryContext[];
+  invariants: AuthorityInvariantRecord[];
+  witness: AuthorityRegistryWitness;
+};
+
+loadAuthorityRegistryBundle(force?: boolean): Promise<AuthorityRegistryBundle>
+```
+
+`loadCollectiveRepositories(force?)` remains available and delegates to the richer loader so existing compilation behavior does not break.
+
+The cache must represent one observed bundle. A forced reload refreshes both documents before replacing the cached bundle.
+
+If either required registry is unavailable or globally malformed, preserve the existing fail-closed Authority Kit behavior rather than silently combining a fresh document with a stale hidden fallback.
+
+## Nearby Growth input contract
 
 `deriveNearbyGrowth(...)` receives a frozen/read-only input equivalent to:
 
 ```ts
 type NearbyGrowthInput = {
   routedProjectIds: string[];
-  projects: AuthorityKitProject[];
-  invariants: AuthorityKitInvariant[];
-  registrySnapshot: {
-    projectsVersion: number;
-    projectsUpdated: string;
-    invariantsVersion: number;
-    invariantsUpdated: string;
-  };
+  projects: RepositoryContext[];
+  invariants: AuthorityInvariantRecord[];
+  registryWitness: AuthorityRegistryWitness;
 };
 ```
 
-The implementation may use the existing loaded registry types rather than introduce these exact names, but the semantic boundary must remain the same.
-
-No raw founder prompt is required by the projection. This prevents an LLM or text-similarity path from becoming a hidden relevance source.
+No raw founder prompt is required by the projection. This prevents an LLM, keyword matcher, or free-text `nonAuthority` interpretation from becoming a hidden relevance source.
 
 ## Admissible evidence classes
 
-A neighboring project may be admitted only through one or more explicit classes:
+A neighboring project may be admitted only through one or both explicit classes below.
 
 ### 1. `typed-relation`
 
 The routed project declares a relation to the candidate, or the candidate declares a relation to the routed project, through the Authority Kit relation vocabulary.
 
-Examples include `DEPENDS_ON`, `CONFORMS_TO`, `PROPOSES_TO`, `EMBODIES`, `EXPORTS_TO`, and explicit lineage/donation relations.
-
 The relation direction and type must be preserved in the result.
+
+Examples include `DEPENDS_ON`, `CONFORMS_TO`, `PROPOSES_TO`, `EMBODIES`, `EXPORTS_TO`, `RECORDS_IN`, `PROJECTS_FROM`, `DESCENDS_FROM`, and `DONATES_PATTERN_TO`.
 
 ### 2. `shared-invariant`
 
-A proven invariant explicitly connects the routed project and candidate through owner/consumer declarations.
+A `maturity: "proven"` invariant explicitly connects the routed project and candidate through its `owner` and `consumers` declarations.
 
-At least one side must be the invariant owner or an explicitly named consumer. Mere thematic resemblance to the invariant claim is insufficient.
+For a routed project `R` and candidate `C`, the invariant admits the edge only when one of these exact conditions holds:
 
-Only `maturity: "proven"` invariants may admit a v0.1 suggestion.
+- `owner === R` and `consumers` contains `C`;
+- `owner === C` and `consumers` contains `R`;
+- `consumers` contains both `R` and `C`.
 
-### 3. `explicit-proof-reference`
+The invariant's `proofRefs` travel as evidence metadata. They strengthen inspectability; they are not a third independent relevance class and are never mined as free-form PR text.
 
-A project may appear when a proven invariant already names project-owned proof that directly explains the cross-project connection and the target project is explicitly represented in that invariant's consumer/owner declarations.
-
-This class may strengthen another class but must not become free-form PR-text mining.
+Mere thematic resemblance to the invariant claim is insufficient.
 
 ## Candidate refusal rules
 
@@ -131,13 +184,27 @@ A candidate is excluded when any of the following is true:
 
 1. it is already one of the routed projects;
 2. it does not have an admissible evidence class;
-3. the proposed relation would require the routed project to exercise a capability declared in its `nonAuthority` list;
-4. the candidate is an `ancestor`, `monument`, or lineage-only historical project unless the existing Founder Node compilation already records explicit revival intent;
+3. it is classified as `status: "ancestor"`, `status: "monument"`, or `kind: "lineage-ancestor"`;
+4. a relation or invariant references a missing/unknown project id;
 5. the evidence depends only on taxonomy/category similarity;
-6. the evidence requires interpreting prose that is not represented in the registries;
-7. the registry entry is malformed or refers to a missing project id.
+6. the evidence would require interpreting prose outside the machine-readable registries.
 
-Malformed evidence fails closed for that edge; it must not make all ordinary routing unusable.
+Malformed evidence fails closed for that edge; it must not manufacture a candidate.
+
+Dormant projects are not automatically historical ancestors. If explicit machine-readable evidence points to a dormant project, v0.1 may show it as a nearby door while preserving its lifecycle status in the result. Selection still does not dispatch work.
+
+## Authority preservation
+
+Nearby Growth never tries to decide whether the founder's requested capability matches a candidate's free-text `nonAuthority` declarations. The existing compiler already owns that semantic check because it has the raw founder intent.
+
+Therefore:
+
+1. `deriveNearbyGrowth(...)` runs only when the current compilation is not routing-blocked;
+2. a suggestion grants no authority and queues nothing;
+3. if the human chooses a suggested project as a work target, that choice re-enters the ordinary Founder Node compilation/routing path;
+4. the ordinary path re-runs historical-revival and `nonAuthority` checks before proposals can be emitted.
+
+A nearby door can affect attention. It cannot bypass admission.
 
 ## Deterministic ordering and bound
 
@@ -145,16 +212,18 @@ The projection returns at most three projects.
 
 Rank without opaque scoring:
 
-1. direct typed execution/composition relations (`DEPENDS_ON`, `CONFORMS_TO`, `PROPOSES_TO`, `EMBODIES`, `EXPORTS_TO`, `RECORDS_IN`, `PROJECTS_FROM`);
+1. current operational/composition typed relations:
+   `DEPENDS_ON`, `CONFORMS_TO`, `PROPOSES_TO`, `EMBODIES`, `EXPORTS_TO`, `RECORDS_IN`, `PROJECTS_FROM`;
 2. shared proven invariant evidence;
-3. lineage/pattern-donation relations when current lifecycle status permits them.
+3. remaining explicit relation types such as lineage or pattern donation when the candidate is not excluded by lifecycle rules.
 
-Within the same evidence tier:
+Within the same tier:
 
-1. more independent explicit evidence classes first;
-2. candidate project id ascending as final deterministic tie-break.
+1. more independent evidence classes first (`typed-relation` + `shared-invariant` before only one);
+2. more explicit evidence records within that class first;
+3. candidate project id ascending as the final deterministic tie-break.
 
-The numeric tier order is part of the v0.1 contract. No learned or heuristic score is introduced.
+The tier order is part of the v0.1 contract. No learned or heuristic score is introduced.
 
 ## Output contract
 
@@ -165,6 +234,7 @@ type NearbyGrowthDoor = {
   projectId: string;
   repository: string;
   role: string;
+  status: RepositoryStatus;
   evidence: Array<
     | {
         kind: 'typed-relation';
@@ -181,11 +251,17 @@ type NearbyGrowthDoor = {
       }
   >;
 };
+
+type NearbyGrowthResult = {
+  doors: NearbyGrowthDoor[];
+  registryWitness: AuthorityRegistryWitness;
+  diagnostics: string[];
+};
 ```
 
 The UI may render this more compactly, but every visible door must answer **why is this here?** without consulting implementation code.
 
-The projection also returns the registry snapshot metadata used to derive the results.
+Diagnostics are non-authoritative observations for malformed/missing edges; they do not create suggestions.
 
 ## UI behavior
 
@@ -195,26 +271,28 @@ Nearby Growth appears as a small secondary section after successful routing:
 
 - heading: **Evidenced Nearby Growth**;
 - zero-state: **No evidenced nearby growth yet.**;
-- each card shows project/repository identity plus concise evidence chips such as `DEPENDS_ON → tranchnode`, `CONFORMS_TO → project0`, or `invariant: immutable-source`;
-- clicking/selecting a door may place that project into ordinary Founder Node review context, but must not queue, dispatch, or mutate anything automatically.
+- each card shows project/repository identity, lifecycle status when useful, and concise evidence chips such as `DEPENDS_ON → tranchnode`, `CONFORMS_TO → project0`, or `invariant: immutable-source`;
+- the section exposes the observed Authority Kit project/invariant `updated` metadata in compact provenance detail;
+- choosing a door may feed that project into ordinary Founder Node review/compile context, but must not queue, dispatch, or mutate anything automatically.
 
 No large navigation redesign is part of v0.1.
 
 ## Authority Kit freshness reconciliation
 
-The existing Authority Kit registry remains the source of the projection. v0.1 does not introduce automatic registry synthesis.
+The existing Authority Kit registries remain the source of the projection. v0.1 does not introduce automatic registry synthesis.
 
-Before the proof specimen, inspect only load-bearing registry facts used by the acceptance cases. If a fact is demonstrably stale relative to merged project-owned evidence, update Authority Kit through its normal reviewed registry process.
+Before the proof specimen, inspect only load-bearing registry facts used by the acceptance cases. If one is demonstrably stale relative to merged project-owned evidence, update Authority Kit through its normal reviewed registry process.
 
 Rules:
 
 - do not add speculative relations;
 - do not mark an invariant `proven` without project-owned executable evidence;
 - do not infer a consumer merely because an invariant seems useful there;
-- preserve `updated` metadata honestly;
-- Founder Node must expose the snapshot dates it actually consumed.
+- preserve each document's `updated` metadata honestly;
+- Founder Node must expose the metadata it actually observed;
+- no Authority Kit mutation is required merely because newer unrelated proofs exist.
 
-This turns registry freshness into visible provenance instead of hidden confidence.
+This turns freshness into visible provenance instead of hidden confidence.
 
 ## Error handling
 
@@ -224,15 +302,15 @@ Preserve Founder Node's existing fail-closed authority-routing behavior. Do not 
 
 ### Nearby Growth-specific malformed edge
 
-Skip/refuse the malformed suggestion and retain the ordinary routed result. Nearby Growth is advisory and must not make valid routing less available.
+Skip/refuse the malformed suggestion and retain the ordinary routed result. Nearby Growth is advisory and must not make valid routing less available after a successfully loaded registry bundle.
 
 ### Unknown project reference
 
-Exclude the candidate and emit a diagnostic suitable for tests/logging. Never synthesize the missing project.
+Exclude the candidate and add a deterministic diagnostic. Never synthesize the missing project.
 
 ### No evidence
 
-Return `[]`. This is a valid result, not an error.
+Return `doors: []`. This is a valid result, not an error.
 
 ## Proof specimens
 
@@ -240,8 +318,9 @@ Return `[]`. This is a valid result, not an error.
 
 Given Corpus OS as the routed target and the current registry:
 
-- TranchNode should be admitted through explicit dependency evidence;
-- Project0 should be admitted through explicit conformance evidence;
+- TranchNode should be admitted through explicit `DEPENDS_ON` evidence;
+- the existing proven `immutable-source` invariant may independently strengthen the Corpus OS ↔ TranchNode explanation when its owner/consumer declarations match;
+- Project0 should be admitted through explicit `CONFORMS_TO` evidence;
 - unrelated creative repositories must not appear merely because their descriptions contain similar words.
 
 ### Specimen B — proposal → execution
@@ -258,51 +337,69 @@ Given Groove Rooms as the routed target:
 - Band Runtime should be admitted through the explicit `EMBODIES` relation;
 - the UI must preserve that the relationship explains proximity, not execution authority.
 
-### Specimen D — negative control
+### Specimen D — invariant-only neighbor
+
+Using a frozen Authority Kit fixture containing the current proven `replay-from-recorded-state` invariant:
+
+- Jubilee Authority Kit and TranchNOSE should become neighbors through the exact owner/consumer declaration even if no direct project relation connects them in the fixture;
+- removing that invariant must remove the door.
+
+This proves invariants are a real second evidence channel rather than decoration on typed relations.
+
+### Specimen E — negative control
 
 Given a routed project with no explicit relation or proven invariant path to a tempting candidate:
 
 - the tempting candidate must not appear;
 - the result may be empty.
 
-### Specimen E — evidence removal
+### Specimen F — authority block preservation
 
-Remove one supporting relation/invariant from a test fixture:
+Given an intent that the existing compiler blocks through historical or `nonAuthority` rules:
 
-- the corresponding door must disappear unless another independent admissible class still supports it.
-
-This proves the projection is evidence-derived rather than hardcoded.
+- Nearby Growth must not be produced as an alternate route around the refusal;
+- the existing blocked compilation remains authoritative for that attempt.
 
 ## Testing strategy
 
-1. **Pure projection tests**
-   - deterministic output under shuffled registry input order;
+1. **Registry loader tests**
+   - both version-1 documents required;
+   - duplicate/missing ids fail closed;
+   - unsupported invariant maturity/version shape is rejected or explicitly ignored according to the parser contract;
+   - forced reload replaces the full observed bundle rather than one half;
+   - existing `loadCollectiveRepositories()` behavior remains compatible.
+
+2. **Pure projection tests**
+   - deterministic output under shuffled project, invariant, relation, consumer, and proof-ref input order;
    - maximum three results;
    - exact evidence preservation;
    - valid empty state;
    - malformed/missing references fail closed locally;
-   - lifecycle and `nonAuthority` exclusions;
-   - evidence removal changes the output predictably.
+   - historical lifecycle exclusions;
+   - dormant status preserved rather than silently promoted;
+   - evidence removal changes output predictably;
+   - invariant-only admission works.
 
-2. **Compiler integration tests**
+3. **Compiler integration tests**
    - existing authority routing result is unchanged;
    - nearby suggestions appear only after successful routing;
    - routing-blocked intent produces no downstream suggestions that could bypass the block.
 
-3. **UI tests**
+4. **UI tests**
    - visible evidence reason for every card;
    - zero-state text;
-   - selection is non-mutating until the existing human review/dispatch machinery is used.
+   - observed registry metadata is inspectable;
+   - selection is non-mutating until the ordinary human review/dispatch machinery is used.
 
-4. **Authority Kit validation**
-   - any freshness reconciliation must pass the existing registry validator;
-   - no schema or relation vocabulary expansion unless separately designed.
+5. **Authority Kit validation**
+   - any freshness reconciliation passes the existing registry validator;
+   - no schema or relation-vocabulary expansion unless separately designed.
 
 ## Compatibility
 
 Additive.
 
-Existing routing, proposal generation, dispatch, receipt behavior, and Authority Kit authority boundaries remain unchanged. Nearby Growth is a derived advisory projection.
+Existing routing, proposal generation, dispatch, receipt behavior, and Authority Kit authority boundaries remain unchanged. Existing callers of `loadCollectiveRepositories()` keep their current contract. Nearby Growth is a derived advisory projection.
 
 ## Success condition
 
@@ -311,7 +408,7 @@ The slice succeeds when Founder Node can answer both questions separately:
 1. **Where does this work belong?** — existing authority-aware routing.
 2. **Which neighboring door is explicitly evidenced by the ecosystem we already have?** — new Nearby Growth projection.
 
-Every neighboring answer must be reconstructible from Authority Kit registry evidence, disappear when that evidence disappears, and grant no new authority by being shown.
+Every neighboring answer must be reconstructible from Authority Kit machine-readable evidence, disappear when that evidence disappears, expose the registry pair it was derived from, and grant no new authority by being shown.
 
 ## Explicit deferred frontier
 
