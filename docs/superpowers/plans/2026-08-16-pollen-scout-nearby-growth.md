@@ -35,82 +35,68 @@
 
 ### Create
 
-- `src/types/nearbyGrowth.ts` — Authority Kit invariant/witness/bundle types plus Nearby Growth input/output evidence contracts.
-- `src/services/nearbyGrowth.ts` — pure deterministic projection; no network, prompt, storage, or UI dependencies.
-- `src/services/compileFounderIntent.ts` — thin post-routing wrapper that attaches advisory Nearby Growth only when the existing compiler result is unblocked.
-- `src/components/NearbyGrowthPanel.tsx` — small advisory UI surface that renders doors, evidence reasons, lifecycle status, and observed registry dates.
-- `tests/fixtures/authorityRegistry.ts` — focused frozen registry fixtures used by loader/projection/compiler/UI tests.
-- `tests/authorityKitRegistry.test.ts` — bundle-loader compatibility, validation, atomic cache replacement, and force-reload tests.
-- `tests/nearbyGrowth.test.ts` — projection acceptance specimens, ordering, malformed-edge diagnostics, and negative controls.
-- `tests/compilerNearbyGrowth.test.ts` — successful-routing and blocked-routing integration tests.
-- `tests/NearbyGrowthPanel.test.ts` — dependency-free static-render assertions for evidence, zero-state, and provenance copy.
+- `src/types/nearbyGrowth.ts`
+- `src/services/nearbyGrowth.ts`
+- `src/services/compileFounderIntent.ts`
+- `src/components/NearbyGrowthPanel.tsx`
+- `tests/fixtures/authorityRegistry.ts`
+- `tests/authorityKitRegistry.test.ts`
+- `tests/nearbyGrowth.test.ts`
+- `tests/compilerNearbyGrowth.test.ts`
+- `tests/NearbyGrowthPanel.test.ts`
 
 ### Modify
 
-- `package.json` — add a test script using the existing `tsx` dev dependency; no new package dependency.
-- `src/data/authorityKitRegistry.ts` — add invariant URL, rich bundle loader, validation, witness metadata, and whole-bundle cache while keeping `loadCollectiveRepositories()`.
-- `src/types/founderNode.ts` — allow successful `CompiledIdea` values to carry optional advisory `nearbyGrowth` without changing existing required fields.
-- `src/App.tsx` — use the wrapper compiler, render `NearbyGrowthPanel` after a successful compilation, and route an explicit human door selection back through `handleCompile(...)` using the selected project id.
+- `package.json`
+- `src/data/authorityKitRegistry.ts`
+- `src/types/founderNode.ts`
+- `src/App.tsx`
 
 No Jubilee Authority Kit file is modified by this plan unless the explicit final freshness re-check proves one of the acceptance facts stale.
 
 ---
 
-### Task 1: Establish the independent test floor and Authority Kit observed-bundle loader
+### Task 1 — Authority Kit observed-bundle loader
 
-- [x] Add the repository-independent Node test command.
-- [x] Create shared Nearby Growth / Authority Kit types.
-- [x] Add focused frozen test fixtures.
-- [x] Write loader tests before changing the loader and observe red state.
-- [x] Implement the minimal whole-bundle loader.
+- [x] Add `tsx --test` script without a new dependency.
+- [x] Create shared bundle/witness/evidence types and focused fixtures.
+- [x] Prove red state before the richer loader exists.
+- [x] Implement dual-document validation and whole-bundle cache replacement.
 - [x] Verify 9 loader tests pass.
-- [x] Commit the loader boundary.
 
----
-
-### Task 2: Implement the pure deterministic Nearby Growth projection
+### Task 2 — Pure deterministic Nearby Growth projection
 
 - [x] Write Corpus, proposal→execution, embodiment, invariant-only, negative, historical, dormant, malformed-reference, and ordering specimens first.
-- [x] Observe red state before `deriveNearbyGrowth` exists.
-- [x] Implement evidence normalization, candidate collection, exact tiering, deterministic tie-breaks, and witness passthrough.
+- [x] Prove red state before `deriveNearbyGrowth` exists.
+- [x] Implement exactly two evidence classes, exact tiering, deterministic ordering, diagnostics, and max-three bound.
 - [x] Verify 13 projection tests pass.
-- [x] Commit the pure projection.
 
----
-
-### Task 3: Attach Nearby Growth only after Founder Node authority gates pass
+### Task 3 — Authority-gated compiler integration
 
 - [x] Extend `CompiledIdea` additively.
-- [x] Write successful local-fallback and blocked-route integration tests before integration code.
-- [x] Observe the successful route red state while refusal tests already hold.
-- [x] Preserve the existing compiler as the authority entrypoint using a thin post-routing wrapper after a connector safety gate refused a large full-file rewrite.
-- [x] Derive advisory growth only from compiler-resolved project ids.
-- [x] Preserve deterministic and server authority blocks unchanged.
-- [x] Add Riqor regression proving model/server output cannot substitute a different nearby target.
+- [x] Write successful and blocked integration tests first.
+- [x] Preserve the existing compiler as the authority entrypoint through a thin post-routing wrapper after a connector safety gate refused a large full-file rewrite.
+- [x] Return blocked compiler results unchanged.
+- [x] Add Riqor regression proving server/model output cannot substitute a different nearby target.
 - [x] Verify 4 compiler integration tests pass.
-- [x] Commit the authority-gated integration.
 
----
+### Task 4 — Explainable advisory UI
 
-### Task 4: Render explainable nearby doors without creating a dispatch shortcut
-
-- [x] Write zero-state, provenance, and evidence-bearing render tests.
-- [x] Implement the compact advisory panel.
+- [x] Write empty-state, provenance, evidence, and authority-language render tests.
+- [x] Implement `NearbyGrowthPanel` with no network/storage/dispatch dependency.
 - [x] Wire `Review this door` back through ordinary `handleCompile(...)` with the selected project id.
-- [x] Riqor correction: rename UI test from `.test.tsx` to `.test.ts` so `tsx --test` auto-discovers it.
+- [x] Riqor correction: rename UI test to `.test.ts` so `tsx --test` auto-discovers it.
 - [x] Verify 2 UI render tests pass.
 
----
-
-### Task 5: Execute the full proof specimens and perform bounded cross-project review
+### Task 5 — Full proof and cross-project review
 
 - [x] Fresh local equivalent Node 22 TypeScript proof: **28/28 pass**.
-- [x] Record harness limitations without widening scope: repository has no `tsconfig.json`; local verification mirror lacks installed Vite/tsx dependencies.
-- [x] Re-check Authority Kit load-bearing relations and invariants; no mutation required.
-- [x] Run adversarial Riqor reviewer pass across prompt/model steering, both authority blocks, historical exclusion, deterministic ordering, missing ids, selection behavior, UI authority language, and witness semantics.
-- [x] Correct two test-quality gaps found by review: model-steering regression and `.tsx` discovery.
+- [x] Record harness limits without widening scope: repository has no `tsconfig.json`; local verification mirror lacks installed Vite/tsx dependencies.
+- [x] Re-check Authority Kit load-bearing facts; no mutation required.
+- [x] Run Riqor reviewer pass across prompt/model steering, both authority blocks, historical exclusion, deterministic ordering, missing ids, selection behavior, UI authority language, and witness semantics.
+- [x] Correct both review findings: model-steering regression coverage and `.tsx` discovery.
 - [x] Compare branch scope against approved design; no Authority Kit or unrelated product files changed.
-- [x] Update design status and PR metadata to reflect implementation review.
+- [x] Update design status and implementation record.
 - [x] Re-fetch exact head before any landing decision. Any later code commit invalidates prior landing evidence.
 
 ---
@@ -124,6 +110,6 @@ No Jubilee Authority Kit file is modified by this plan unless the explicit final
 - Historical candidates are excluded; dormant explicit evidence remains visible as dormant.
 - Unknown references diagnose rather than manufacture candidates.
 - Human selection re-enters ordinary compilation; no dispatch shortcut exists.
-- Registry dates are displayed as independent observed provenance and never called an atomic snapshot.
+- Registry dates are independent observed provenance, never an atomic snapshot claim.
 - `PollenReceipt` remains deferred.
 - No Authority Kit mutation was needed.
