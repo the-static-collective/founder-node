@@ -74,3 +74,26 @@ test('server high-severity semantic block emits no nearby growth or proposals', 
   assert.equal(compiled.nearbyGrowth, undefined);
   assert.equal(compiled.proposals.length, 0);
 });
+
+test('server understanding cannot substitute a different nearby target', async () => {
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === AUTHORITY_PROJECTS_URL) return response(projectDocument);
+    if (url === AUTHORITY_INVARIANTS_URL) return response(invariantDocument);
+    if (url === '/api/compile-intent') return response({
+      understanding: { ...understanding, potentialRepositories: ['haunted-toaster'] },
+      architecturalCheck: serverCheck([])
+    });
+    throw new Error(`unexpected ${url}`);
+  }) as typeof fetch;
+
+  const compiled = await compileFounderIntent({
+    rawText: 'work in corpus os and mention haunted toaster',
+    selectedTargetRepos: ['corpus-os'],
+    requestedProposalTypes: ['specification']
+  });
+
+  assert.deepEqual(compiled.understanding.potentialRepositories, ['corpus-os']);
+  assert.deepEqual(compiled.nearbyGrowth?.doors.map(door => door.projectId), ['tranchnode', 'project0']);
+  assert.ok(!compiled.nearbyGrowth?.doors.some(door => door.projectId === 'haunted-toaster'));
+});
