@@ -9,6 +9,7 @@ import { ProposalGenerator } from './components/ProposalGenerator';
 import { DispatchQueue } from './components/DispatchQueue';
 import { ExecutionReceipts } from './components/ExecutionReceipts';
 import { ArchitecturalRulesModal } from './components/ArchitecturalRulesModal';
+import { NearbyGrowthPanel } from './components/NearbyGrowthPanel';
 
 import {
   CompiledIdea,
@@ -18,7 +19,7 @@ import {
   ProposalType,
   RepositoryId
 } from './types/founderNode';
-import { compileFounderIntent } from './services/compilerEngine';
+import { compileFounderIntent } from './services/compileFounderIntent';
 
 const STORAGE_KEY_IDEAS = 'founder_node_ideas_v1';
 const STORAGE_KEY_PROPOSALS = 'founder_node_proposals_v1';
@@ -141,6 +142,16 @@ export default function App() {
       [],
       ['github_issue', 'specification', 'aistudio_prompt'],
       []
+    );
+  };
+
+  const handleReviewNearbyDoor = async (projectId: RepositoryId) => {
+    if (!lastCompiledIdea) return;
+    await handleCompile(
+      lastCompiledIdea.rawText,
+      lastCompiledIdea.attachments,
+      ['github_issue', 'specification', 'aistudio_prompt'],
+      [projectId]
     );
   };
 
@@ -268,6 +279,13 @@ export default function App() {
                   memoryEnabled={memoryEnabled}
                 />
               </div>
+            )}
+
+            {lastCompiledIdea?.nearbyGrowth && !lastCompiledIdea.architecturalCheck.routingBlocked && (
+              <NearbyGrowthPanel
+                result={lastCompiledIdea.nearbyGrowth}
+                onChooseDoor={handleReviewNearbyDoor}
+              />
             )}
           </div>
         )}
