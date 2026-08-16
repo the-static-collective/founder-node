@@ -58,239 +58,60 @@ No Jubilee Authority Kit file is modified by this plan unless the explicit final
 
 ### Task 1: Establish the independent test floor and Authority Kit observed-bundle loader
 
-**Files:**
-- Create: `src/types/nearbyGrowth.ts`
-- Create: `tests/fixtures/authorityRegistry.ts`
-- Create: `tests/authorityKitRegistry.test.ts`
-- Modify: `package.json`
-- Modify: `src/data/authorityKitRegistry.ts`
-
-**Interfaces:**
-- Consumes: existing `RepositoryContext`, `RepositoryStatus`, and existing `loadCollectiveRepositories(force?)` callers.
-- Produces:
-  - `AuthorityProofRef`
-  - `AuthorityInvariantRecord`
-  - `AuthorityRegistryWitness`
-  - `AuthorityRegistryBundle`
-  - `loadAuthorityRegistryBundle(force?: boolean): Promise<AuthorityRegistryBundle>`
-  - unchanged `loadCollectiveRepositories(force?: boolean): Promise<RepositoryContext[]>`
-  - unchanged `clearAuthorityRegistryCache(): void`
-
-- [x] **Step 1: Add the repository-independent Node test command**
-
-Replace the `scripts` section in `package.json` with the same existing scripts plus:
-
-```json
-"test": "tsx --test"
-```
-
-Do not add Vitest, Jest, Testing Library, jsdom, or any other dependency.
-
-- [x] **Step 2: Create the shared Nearby Growth / Authority Kit types**
-
-Create `src/types/nearbyGrowth.ts` with the approved Authority Kit bundle, witness, evidence, door, input, and result contracts.
-
-- [x] **Step 3: Add focused frozen test fixtures**
-
-Create `tests/fixtures/authorityRegistry.ts` with explicit Corpus, Toaster, Groove Rooms, invariant-only, historical, and dormant specimens.
-
-- [x] **Step 4: Write failing loader tests before changing the loader**
-
-The loader tests cover version refusal, duplicate ids, invalid owner/consumer references, whole-bundle cache replacement, and cache clearing.
-
-- [x] **Step 5: Run the tests and verify the new interface is missing**
-
-Red state observed before implementation.
-
-- [x] **Step 6: Implement the minimal whole-bundle loader**
-
-The loader reads both registry documents, validates the cross-document references needed by the projection, exposes independent witness metadata, and replaces the cached bundle only after both documents validate.
-
-- [x] **Step 7: Run the loader proof**
-
-Fresh local verification: 9 loader tests pass.
-
-- [x] **Step 8: Commit the loader boundary**
-
-Implemented on the isolated PR branch.
+- [x] Add the repository-independent Node test command.
+- [x] Create shared Nearby Growth / Authority Kit types.
+- [x] Add focused frozen test fixtures.
+- [x] Write loader tests before changing the loader and observe red state.
+- [x] Implement the minimal whole-bundle loader.
+- [x] Verify 9 loader tests pass.
+- [x] Commit the loader boundary.
 
 ---
 
 ### Task 2: Implement the pure deterministic Nearby Growth projection
 
-**Files:**
-- Create: `src/services/nearbyGrowth.ts`
-- Create: `tests/nearbyGrowth.test.ts`
-- Reuse: `tests/fixtures/authorityRegistry.ts`
-
-**Interfaces:**
-- Consumes: `NearbyGrowthInput` from `src/types/nearbyGrowth.ts`.
-- Produces: `deriveNearbyGrowth(input: NearbyGrowthInput): NearbyGrowthResult`.
-
-- [x] **Step 1: Write the acceptance specimens first**
-
-Corpus, proposal→execution, embodiment, invariant-only, negative, historical, dormant, malformed-reference, and ordering specimens are covered.
-
-- [x] **Step 2: Run the projection tests and verify they fail**
-
-Red state observed before `deriveNearbyGrowth` existed.
-
-- [x] **Step 3: Implement evidence normalization helpers**
-
-Operational-relation tier, historical exclusion, stable proof-ref keys, and deterministic evidence ordering implemented.
-
-- [x] **Step 4: Implement candidate evidence collection**
-
-Only typed relations and proven invariant participants admit candidates. Prompt text, roles, `owns`, `nonAuthority`, and model output are not relevance inputs.
-
-- [x] **Step 5: Implement exact tiering and deterministic tie-breaks**
-
-Operational relation → proven invariant → other relation; class count, evidence count, then project id; capped at three.
-
-- [x] **Step 6: Return witness metadata without alteration**
-
-No clock, random id, or network lookup enters the projection.
-
-- [x] **Step 7: Run the projection proof**
-
-Fresh local verification: 13 projection tests pass.
-
-- [x] **Step 8: Commit the pure projection**
-
-Implemented on the isolated PR branch.
+- [x] Write Corpus, proposal→execution, embodiment, invariant-only, negative, historical, dormant, malformed-reference, and ordering specimens first.
+- [x] Observe red state before `deriveNearbyGrowth` exists.
+- [x] Implement evidence normalization, candidate collection, exact tiering, deterministic tie-breaks, and witness passthrough.
+- [x] Verify 13 projection tests pass.
+- [x] Commit the pure projection.
 
 ---
 
 ### Task 3: Attach Nearby Growth only after Founder Node authority gates pass
 
-**Files:**
-- Create: `src/services/compileFounderIntent.ts`
-- Create: `tests/compilerNearbyGrowth.test.ts`
-- Modify: `src/types/founderNode.ts`
-
-**Interfaces:**
-- Consumes:
-  - existing `compileFounderIntent(options)` authority-aware compiler;
-  - `loadAuthorityRegistryBundle(force?)`;
-  - `deriveNearbyGrowth(input)`.
-- Produces: successful `CompiledIdea.nearbyGrowth?: NearbyGrowthResult`; blocked compilations omit it.
-
-- [x] **Step 1: Extend the compiled result type additively**
-
-`CompiledIdea.nearbyGrowth?: NearbyGrowthResult` is additive.
-
-- [x] **Step 2: Write successful local-fallback integration test**
-
-Corpus remains primary routed target while TranchNode/Project0 appear only as advisory neighboring doors.
-
-- [x] **Step 3: Write blocked-route tests before integration code**
-
-Both deterministic historical refusal and server high-severity refusal suppress Nearby Growth and proposals.
-
-- [x] **Step 4: Run integration tests and verify failure**
-
-Red state observed: successful route lacked advisory output while refusal tests already held.
-
-- [x] **Step 5: Preserve the existing compiler as the authority entrypoint**
-
-A connector safety gate refused a large full-file rewrite of `compilerEngine.ts`. The bounded correction was a thin wrapper: call the existing compiler first, return blocked results unchanged, and attach advisory output only to successful results.
-
-- [x] **Step 6: Derive advisory growth only from the compiler's deterministic routed ids**
-
-The wrapper consumes `compiled.understanding.potentialRepositories`, which the existing compiler overwrites with its own resolved targets even when the server returns different model suggestions.
-
-- [x] **Step 7: Preserve deterministic and server authority blocks unchanged**
-
-Blocked results return before bundle-derived Nearby Growth is attached.
-
-- [x] **Step 8: Prove Gemini/server output cannot steer Nearby Growth**
-
-Riqor review added a regression where the server proposes `haunted-toaster` while deterministic routing selects `corpus-os`; output remains Corpus neighbors only.
-
-- [x] **Step 9: Run the integration proof and previous tasks**
-
-Fresh local verification: 4 compiler-integration tests pass; combined loader/projection/compiler floor passes.
-
-- [x] **Step 10: Commit the authority-gated integration**
-
-Implemented on the isolated PR branch.
+- [x] Extend `CompiledIdea` additively.
+- [x] Write successful local-fallback and blocked-route integration tests before integration code.
+- [x] Observe the successful route red state while refusal tests already hold.
+- [x] Preserve the existing compiler as the authority entrypoint using a thin post-routing wrapper after a connector safety gate refused a large full-file rewrite.
+- [x] Derive advisory growth only from compiler-resolved project ids.
+- [x] Preserve deterministic and server authority blocks unchanged.
+- [x] Add Riqor regression proving model/server output cannot substitute a different nearby target.
+- [x] Verify 4 compiler integration tests pass.
+- [x] Commit the authority-gated integration.
 
 ---
 
 ### Task 4: Render explainable nearby doors without creating a dispatch shortcut
 
-**Files:**
-- Create: `src/components/NearbyGrowthPanel.tsx`
-- Create: `tests/NearbyGrowthPanel.test.ts`
-- Modify: `src/App.tsx`
-
-**Interfaces:**
-- Consumes: `NearbyGrowthResult` and `projectId` values already admitted by the pure projection.
-- Produces an advisory panel and optional `Review this door` callback only.
-
-- [x] **Step 1: Write zero-state and provenance render tests**
-
-Covers heading, legitimate empty state, and independent project/invariant dates.
-
-- [x] **Step 2: Write an evidence-bearing door render test**
-
-Covers lifecycle status, typed relation label, invariant label, and absence of dispatch/approve/create-issue language.
-
-- [x] **Step 3: Run the UI tests and verify failure**
-
-The local Node proof initially exposed an environment-only `.tsx` entrypoint limitation; the same React.createElement component logic was then executed through a temporary `.ts` copy for the red/green cycle.
-
-- [x] **Step 4: Implement the compact advisory panel**
-
-The component has no compiler, dispatch, GitHub, storage, fetch, or mutation dependency.
-
-- [x] **Step 5: Wire the panel into successful compilation UI**
-
-`Review this door` calls the existing `handleCompile(...)` with the selected project id. It does not queue or dispatch anything itself.
-
-- [x] **Step 6: Correct full-suite test discovery**
-
-Riqor review found that `tsx --test` does not auto-discover `.test.tsx`; because the UI test contains no JSX, it was renamed to `tests/NearbyGrowthPanel.test.ts` so the repository-level full test command includes it.
-
-- [x] **Step 7: Run UI and full executable proofs**
-
-Fresh local equivalent Node 22 TypeScript proof: 28 tests pass, 0 fail. The sandbox cannot run literal `tsx --test` because `tsx` is not installed locally and outbound package installation is unavailable.
+- [x] Write zero-state, provenance, and evidence-bearing render tests.
+- [x] Implement the compact advisory panel.
+- [x] Wire `Review this door` back through ordinary `handleCompile(...)` with the selected project id.
+- [x] Riqor correction: rename UI test from `.test.tsx` to `.test.ts` so `tsx --test` auto-discovers it.
+- [x] Verify 2 UI render tests pass.
 
 ---
 
 ### Task 5: Execute the full proof specimens and perform bounded cross-project review
 
-- [x] **Step 1: Run the complete executable proof floor**
-
-Fresh local equivalent Node 22 TypeScript proof: **28/28 pass**.
-
-- [x] **Step 2: Run targeted acceptance specimens separately**
-
-Loader, projection, compiler integration, and static UI specimens all pass independently.
-
-- [x] **Step 3: Record repository harness limitations without widening scope**
-
-`npm run lint` remains non-operative because the repository has no `tsconfig.json`. In the verification mirror, `npm run build` cannot start because Vite dependencies are not installed. Neither result is counted as feature proof, and no unrelated harness files were added.
-
-- [x] **Step 4: Re-check only the load-bearing Authority Kit facts**
-
-All required relations and invariant owner/consumer facts remain present. **No Authority Kit mutation was made.**
-
-- [x] **Step 5: Run an adversarial Riqor review**
-
-Riqor reviewer criteria were applied to prompt/model steering, both authority blocks, historical exclusion, deterministic ordering, missing ids, selection behavior, UI authority language, and witness semantics. Two test-quality gaps were found and corrected: explicit model-steering regression coverage and `.tsx` full-suite discovery.
-
-- [x] **Step 6: Compare branch scope to the approved design**
-
-Scope remains limited to design/plan, loader/projection/compiler wrapper/UI, and their tests. No Authority Kit or unrelated product files changed.
-
-- [x] **Step 7: Update the existing PR from design-only to implementation review**
-
-PR metadata is updated separately after this plan record.
-
-- [x] **Step 8: Capture exact-head evidence for PR Completion**
-
-The exact head must be re-fetched after this status commit and PR metadata update. Any later code commit invalidates prior landing readiness.
+- [x] Fresh local equivalent Node 22 TypeScript proof: **28/28 pass**.
+- [x] Record harness limitations without widening scope: repository has no `tsconfig.json`; local verification mirror lacks installed Vite/tsx dependencies.
+- [x] Re-check Authority Kit load-bearing relations and invariants; no mutation required.
+- [x] Run adversarial Riqor reviewer pass across prompt/model steering, both authority blocks, historical exclusion, deterministic ordering, missing ids, selection behavior, UI authority language, and witness semantics.
+- [x] Correct two test-quality gaps found by review: model-steering regression and `.tsx` discovery.
+- [x] Compare branch scope against approved design; no Authority Kit or unrelated product files changed.
+- [x] Update design status and PR metadata to reflect implementation review.
+- [x] Re-fetch exact head before any landing decision. Any later code commit invalidates prior landing evidence.
 
 ---
 
