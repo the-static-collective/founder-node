@@ -1,3 +1,5 @@
+import type { NearbyGrowthResult } from './nearbyGrowth';
+
 export type RepositoryId = string;
 
 export type RepositoryStatus = 'active' | 'seed' | 'dormant' | 'ancestor' | 'monument' | 'unresolved';
@@ -165,4 +167,5 @@ export interface CompiledIdea {
   understanding: UnderstandingStage;
   architecturalCheck: ArchitecturalCheckResult;
   proposals: Proposal[];
+  nearbyGrowth?: NearbyGrowthResult;
 }
