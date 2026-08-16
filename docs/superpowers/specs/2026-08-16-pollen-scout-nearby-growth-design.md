@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved concept; self-reviewed written design awaiting explicit user review before implementation planning.
+Approved 2026-08-16; implementation executed inline on the design branch under the companion Superpowers implementation plan.
 
 ## Purpose
 
