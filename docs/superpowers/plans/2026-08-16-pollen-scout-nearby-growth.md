@@ -13,25 +13,6 @@
 - No Authority Kit mutation was needed after the final freshness check.
 - `PollenReceipt` remains deferred.
 
-## Implemented files
-
-Created:
-- `src/types/nearbyGrowth.ts`
-- `src/services/nearbyGrowth.ts`
-- `src/services/compileFounderIntent.ts`
-- `src/components/NearbyGrowthPanel.tsx`
-- `tests/fixtures/authorityRegistry.ts`
-- `tests/authorityKitRegistry.test.ts`
-- `tests/nearbyGrowth.test.ts`
-- `tests/compilerNearbyGrowth.test.ts`
-- `tests/NearbyGrowthPanel.test.ts`
-
-Modified:
-- `package.json`
-- `src/data/authorityKitRegistry.ts`
-- `src/types/founderNode.ts`
-- `src/App.tsx`
-
 ## Proof record
 
 - [x] 9 loader tests pass.
@@ -47,7 +28,7 @@ Modified:
 - [x] Independent registry dates are shown without atomic-snapshot claims.
 - [x] Riqor owner-style review found two test-quality gaps; both were corrected.
 - [x] Live Authority Kit acceptance edges/invariants were re-checked; no write required.
-- [x] Branch scope remains design/plan + bounded implementation/tests only.
+- [x] Branch scope remains bounded.
 
 ## Harness evidence
 
@@ -62,3 +43,4 @@ The repository still has no `tsconfig.json`, so `npm run lint` is not an operati
 - Human selection re-enters normal compilation.
 - UI communicates evidence/review, not authority/dispatch.
 - Registry witness metadata remains non-atomic provenance.
+- `PollenReceipt` remains deferred.
