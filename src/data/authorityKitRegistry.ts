@@ -1,7 +1,11 @@
 import type { RepositoryContext, RepositoryKind, RepositoryStatus } from '../types/founderNode';
+import type { AuthorityInvariantRecord, AuthorityRegistryBundle } from '../types/nearbyGrowth';
 
-export const AUTHORITY_REGISTRY_URL =
+export const AUTHORITY_PROJECTS_URL =
   'https://raw.githubusercontent.com/the-static-collective/jubilee-authority-kit/main/registry/projects.json';
+export const AUTHORITY_INVARIANTS_URL =
+  'https://raw.githubusercontent.com/the-static-collective/jubilee-authority-kit/main/registry/invariants.json';
+export const AUTHORITY_REGISTRY_URL = AUTHORITY_PROJECTS_URL;
 
 interface AuthorityProjectRecord {
   id: string;
@@ -14,13 +18,19 @@ interface AuthorityProjectRecord {
   relations: Array<{ type: string; target: string; note?: string }>;
 }
 
-interface AuthorityRegistryDocument {
+interface AuthorityProjectRegistryDocument {
   version: number;
   updated: string;
   projects: AuthorityProjectRecord[];
 }
 
-let cachedRepositories: RepositoryContext[] | null = null;
+interface AuthorityInvariantRegistryDocument {
+  version: number;
+  updated: string;
+  invariants: AuthorityInvariantRecord[];
+}
+
+let cachedBundle: AuthorityRegistryBundle | null = null;
 
 const displayName = (repository: string) => {
   const leaf = repository.split('/').pop() || repository;
@@ -51,37 +61,75 @@ const toContext = (project: AuthorityProjectRecord): RepositoryContext => {
   };
 };
 
-export async function loadCollectiveRepositories(force = false): Promise<RepositoryContext[]> {
-  if (cachedRepositories && !force) return cachedRepositories;
-
-  let response: Response;
+const fetchRegistry = async (url: string, label: string): Promise<Response> => {
   try {
-    response = await fetch(AUTHORITY_REGISTRY_URL, { cache: 'no-store' });
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response;
   } catch (error) {
-    throw new Error(`Authority Kit registry unavailable: ${String(error)}`);
+    throw new Error(`Authority Kit ${label} unavailable: ${String(error)}`);
+  }
+};
+
+export async function loadAuthorityRegistryBundle(force = false): Promise<AuthorityRegistryBundle> {
+  if (cachedBundle && !force) return cachedBundle;
+
+  const projectsResponse = await fetchRegistry(AUTHORITY_PROJECTS_URL, 'project registry');
+  const invariantsResponse = await fetchRegistry(AUTHORITY_INVARIANTS_URL, 'invariant registry');
+  const projectsDocument = (await projectsResponse.json()) as AuthorityProjectRegistryDocument;
+  const invariantsDocument = (await invariantsResponse.json()) as AuthorityInvariantRegistryDocument;
+
+  if (!projectsDocument || projectsDocument.version !== 1 || !Array.isArray(projectsDocument.projects) || !projectsDocument.updated?.trim()) {
+    throw new Error('Authority Kit project registry is malformed or uses an unsupported version.');
+  }
+  if (!invariantsDocument || invariantsDocument.version !== 1 || !Array.isArray(invariantsDocument.invariants) || !invariantsDocument.updated?.trim()) {
+    throw new Error('Authority Kit invariant registry is malformed or uses an unsupported version.');
   }
 
-  if (!response.ok) {
-    throw new Error(`Authority Kit registry unavailable: HTTP ${response.status}`);
-  }
-
-  const registry = (await response.json()) as AuthorityRegistryDocument;
-  if (!registry || registry.version !== 1 || !Array.isArray(registry.projects)) {
-    throw new Error('Authority Kit registry is malformed or uses an unsupported version.');
-  }
-
-  const seen = new Set<string>();
-  for (const project of registry.projects) {
-    if (!project.id || seen.has(project.id)) {
-      throw new Error(`Authority Kit registry contains an invalid or duplicate project id: ${project.id || '<missing>'}`);
+  const projectIds = new Set<string>();
+  for (const project of projectsDocument.projects) {
+    if (!project.id || projectIds.has(project.id)) {
+      throw new Error(`Authority Kit project registry contains an invalid or duplicate project id: ${project.id || '<missing>'}`);
     }
-    seen.add(project.id);
+    projectIds.add(project.id);
   }
 
-  cachedRepositories = registry.projects.map(toContext);
-  return cachedRepositories;
+  const invariantIds = new Set<string>();
+  for (const invariant of invariantsDocument.invariants) {
+    if (!invariant.id || invariantIds.has(invariant.id)) {
+      throw new Error(`Authority Kit invariant registry contains an invalid or duplicate invariant id: ${invariant.id || '<missing>'}`);
+    }
+    invariantIds.add(invariant.id);
+    if (!projectIds.has(invariant.owner)) {
+      throw new Error(`Authority Kit invariant ${invariant.id} references unknown owner: ${invariant.owner}`);
+    }
+    if (!Array.isArray(invariant.consumers)) {
+      throw new Error(`Authority Kit invariant ${invariant.id} has malformed consumers.`);
+    }
+    for (const consumer of invariant.consumers) {
+      if (!projectIds.has(consumer)) {
+        throw new Error(`Authority Kit invariant ${invariant.id} references unknown consumer: ${consumer}`);
+      }
+    }
+  }
+
+  const nextBundle: AuthorityRegistryBundle = {
+    repositories: projectsDocument.projects.map(toContext),
+    invariants: invariantsDocument.invariants,
+    witness: {
+      projects: { version: projectsDocument.version, updated: projectsDocument.updated, source: AUTHORITY_PROJECTS_URL },
+      invariants: { version: invariantsDocument.version, updated: invariantsDocument.updated, source: AUTHORITY_INVARIANTS_URL }
+    }
+  };
+
+  cachedBundle = nextBundle;
+  return nextBundle;
+}
+
+export async function loadCollectiveRepositories(force = false): Promise<RepositoryContext[]> {
+  return (await loadAuthorityRegistryBundle(force)).repositories;
 }
 
 export function clearAuthorityRegistryCache() {
-  cachedRepositories = null;
+  cachedBundle = null;
 }
