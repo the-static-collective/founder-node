@@ -30,6 +30,7 @@ interface AuthorityInvariantRegistryDocument {
   invariants: AuthorityInvariantRecord[];
 }
 
+let cachedProjectsDocument: AuthorityProjectRegistryDocument | null = null;
 let cachedBundle: AuthorityRegistryBundle | null = null;
 
 const displayName = (repository: string) => {
@@ -71,19 +72,16 @@ const fetchRegistry = async (url: string, label: string): Promise<Response> => {
   }
 };
 
-export async function loadAuthorityRegistryBundle(force = false): Promise<AuthorityRegistryBundle> {
-  if (cachedBundle && !force) return cachedBundle;
-
-  const projectsResponse = await fetchRegistry(AUTHORITY_PROJECTS_URL, 'project registry');
-  const invariantsResponse = await fetchRegistry(AUTHORITY_INVARIANTS_URL, 'invariant registry');
-  const projectsDocument = (await projectsResponse.json()) as AuthorityProjectRegistryDocument;
-  const invariantsDocument = (await invariantsResponse.json()) as AuthorityInvariantRegistryDocument;
-
-  if (!projectsDocument || projectsDocument.version !== 1 || !Array.isArray(projectsDocument.projects) || !projectsDocument.updated?.trim()) {
+function validateProjectsDocument(
+  projectsDocument: AuthorityProjectRegistryDocument,
+): AuthorityProjectRegistryDocument {
+  if (
+    !projectsDocument
+    || projectsDocument.version !== 1
+    || !Array.isArray(projectsDocument.projects)
+    || !projectsDocument.updated?.trim()
+  ) {
     throw new Error('Authority Kit project registry is malformed or uses an unsupported version.');
-  }
-  if (!invariantsDocument || invariantsDocument.version !== 1 || !Array.isArray(invariantsDocument.invariants) || !invariantsDocument.updated?.trim()) {
-    throw new Error('Authority Kit invariant registry is malformed or uses an unsupported version.');
   }
 
   const projectIds = new Set<string>();
@@ -94,6 +92,34 @@ export async function loadAuthorityRegistryBundle(force = false): Promise<Author
     projectIds.add(project.id);
   }
 
+  return projectsDocument;
+}
+
+async function loadProjectRegistryDocument(
+  force = false,
+): Promise<AuthorityProjectRegistryDocument> {
+  if (cachedProjectsDocument && !force) return cachedProjectsDocument;
+
+  const projectsResponse = await fetchRegistry(AUTHORITY_PROJECTS_URL, 'project registry');
+  const projectsDocument = validateProjectsDocument(
+    (await projectsResponse.json()) as AuthorityProjectRegistryDocument,
+  );
+  cachedProjectsDocument = projectsDocument;
+  return projectsDocument;
+}
+
+export async function loadAuthorityRegistryBundle(force = false): Promise<AuthorityRegistryBundle> {
+  if (cachedBundle && !force) return cachedBundle;
+
+  const projectsDocument = await loadProjectRegistryDocument(force);
+  const invariantsResponse = await fetchRegistry(AUTHORITY_INVARIANTS_URL, 'invariant registry');
+  const invariantsDocument = (await invariantsResponse.json()) as AuthorityInvariantRegistryDocument;
+
+  if (!invariantsDocument || invariantsDocument.version !== 1 || !Array.isArray(invariantsDocument.invariants) || !invariantsDocument.updated?.trim()) {
+    throw new Error('Authority Kit invariant registry is malformed or uses an unsupported version.');
+  }
+
+  const projectIds = new Set(projectsDocument.projects.map(project => project.id));
   const invariantIds = new Set<string>();
   for (const invariant of invariantsDocument.invariants) {
     if (!invariant.id || invariantIds.has(invariant.id)) {
@@ -127,9 +153,11 @@ export async function loadAuthorityRegistryBundle(force = false): Promise<Author
 }
 
 export async function loadCollectiveRepositories(force = false): Promise<RepositoryContext[]> {
-  return (await loadAuthorityRegistryBundle(force)).repositories;
+  const projectsDocument = await loadProjectRegistryDocument(force);
+  return projectsDocument.projects.map(toContext);
 }
 
 export function clearAuthorityRegistryCache() {
+  cachedProjectsDocument = null;
   cachedBundle = null;
 }
