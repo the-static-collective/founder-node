@@ -39,6 +39,20 @@ test('loads one complete observed registry bundle and preserves compatibility', 
   assert.equal((await loadCollectiveRepositories()).length, projects.length);
 });
 
+test('project-only compatibility loader does not require the invariant registry', async () => {
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === AUTHORITY_PROJECTS_URL) return response(projectDocument);
+    throw new Error(`unexpected optional dependency fetch: ${url}`);
+  }) as typeof fetch;
+
+  const repositories = await loadCollectiveRepositories(true);
+  assert.equal(repositories.length, projects.length);
+  assert.deepEqual(calls, [AUTHORITY_PROJECTS_URL]);
+});
+
 test('rejects unsupported project registry version', async () => {
   installFetch({ ...projectDocument, version: 2 });
   await assert.rejects(() => loadAuthorityRegistryBundle(true), /project registry/);
