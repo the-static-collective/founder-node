@@ -1,0 +1,25 @@
+{
+  "schema": "static-collective.project-status.v1",
+  "asOf": "2026-08-17",
+  "repository": "the-static-collective/founder-node",
+  "defaultBranch": "main",
+  "project": "Founder Node",
+  "state": "active",
+  "phase": "Pollen Scout / Evidenced Nearby Growth v0.1",
+  "canonicalAuthority": "project-owned repository",
+  "observedMainCommit": "10af7368445e765d75862dbf172206dc9e1667f0",
+  "executableSurface": [
+    {"id": "authority-kit-project-routing", "status": "landed"},
+    {"id": "pollen-scout-registry-witness", "status": "landed", "inputs": ["projects.json", "invariants.json"]},
+    {"id": "evidenced-nearby-growth", "status": "landed", "evidenceClasses": ["typed-relation", "shared-invariant"], "maxDoors": 3},
+    {"id": "server-steering-refusal-proof", "status": "landed"},
+    {"id": "vite-react-entrypoint", "status": "landed"},
+    {"id": "pollen-scout-v0.1", "status": "landed", "evidence": {"commit": "10af7368445e765d75862dbf172206dc9e1667f0", "pullRequest": 2}}
+  ],
+  "nonClaims": [
+    "nearby relevance is not authority",
+    "Pollen Scout does not auto-dispatch, create issues, or mutate repositories",
+    "prompt or model prose cannot substitute a nearby-growth target",
+    "PollenReceipt is deferred"
+  ]
+}

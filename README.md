@@ -1,97 +1,82 @@
 # Founder Node
 
-> **Operating Console for The Static Collective**  
-> Translates unstructured founder intent into structured, reviewable, and executable work across connected repositories and platforms (GitHub, AI Studio, Lovable, Bolt) while enforcing zero-drift architectural boundaries.
+Founder Node is an operating console for turning unstructured founder intent into reviewable project routing without granting the console authority over the projects it observes.
 
----
+Its current executable center is deliberately narrower than the original concept mockup: it reads the Static Collective's Authority Kit project registry, routes intent through explicit project boundaries, and now exposes **Pollen Scout / Evidenced Nearby Growth v0.1**—up to three neighboring project doors that can be explained by recorded ecosystem evidence.
 
-## ⚡ Key Capabilities
+> **Show only the neighboring doors the recorded ecosystem can explain. Never confuse relevance with authority, and never cross a door automatically.**
 
-### 1. Multi-Format Idea Stream
-- **Voice Transcription**: Live audio stream capture with waveform visualizer and speech-to-text recognition.
-- **Pasted Chat Import**: Intelligent conversation transcript parser for Slack, Discord, and LLM chat threads.
-- **Screenshot & Diagram OCR**: Optical analysis extracting visual layout structures and text specs from uploaded images.
-- **Interactive Markdown & Mermaid Rendering**: Instant live previews and visual architecture diagram maps right inside the input console.
+## What works now
 
-### 2. Architectural Memory & Boundary Matrix
-- **Ecosystem Domain Rules**: Continuously verifies proposed founder actions against repository documentation across *Haunted Toaster*, *TranchNode*, *Project0*, *Band Runtime*, and *The Static Collective*.
-- **Drift Prevention**: Automatically flags duplicated authority (e.g., duplicate auth user pools), incorrect work placement (e.g., execution code in upstream nodes), and unresolved dependencies.
-- **Interactive Deep Audit**: Test proposed changes in real time and manage custom persisted architectural laws.
+### Authority-aware project routing
 
-### 3. Visual Intent Pipeline
-- **9-Stage Interactive Traceability**: Visualizes the complete life cycle of founder thoughts:
-  1. `01. Idea` — Unstructured Intention
-  2. `02. Understanding` — Observed Facts & System Goals
-  3. `03. Arch Mapping` — Boundary & Authority Check
-  4. `04. Project Selection` — Domain Routing
-  5. `05. Proposal Generation` — Specs, Prompts & Issues
-  6. `06. Human Review` — Founder Gatekeeper Authority
-  7. `07. Dispatch` — Payload Execution Stream
-  8. `08. Execution` — External Repositories/APIs
-  9. `09. Receipt Log` — Cryptographic Provenance Hash
-- **Stage Inspector**: Drill down into any stage to review raw inputs, parsed facts, and cryptographic hashes.
+Founder Node loads the Authority Kit project registry and uses project roles, declared boundaries, and routing rules as input to the existing compiler/routing gate.
 
-### 4. Proposal Generation & Human Authority Dispatch
-- Multi-format spec compiler: **GitHub Issues**, **Specifications**, **AI Studio Prompts**, **Lovable Prompts**, **Bolt Prompts**, **Architecture Notes**, **Implementation Plans**, **PR Reviews**, and **Dependency Maps**.
-- **Human Review Mandate**: No payload is dispatched to external systems without explicit human authorization.
-- **Execution Receipts**: Cryptographically signed result logs storing hash signatures and payload provenance.
+Ordinary project routing stays independently available even if the optional invariant registry is unavailable.
 
----
+### Pollen Scout / Evidenced Nearby Growth v0.1
 
-## 🛠️ Tech Stack
+After ordinary routing succeeds, Founder Node may load an explicitly non-atomic registry pair:
 
-- **Framework**: React 19 + TypeScript
-- **Styling**: Tailwind CSS v4
-- **Icons**: Lucide React
-- **Build Tool**: Vite
+- `projects.json`;
+- `invariants.json`.
 
----
+It then derives nearby project doors through exactly two admissible evidence classes:
 
-## 🚀 Local Setup & Development
+- `typed-relation`;
+- `shared-invariant`.
 
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+The projection is pure and deterministic over the observed registry inputs. It returns at most three doors with explicit evidence and stable ordering.
 
-2. **Start development server**:
-   ```bash
-   npm run dev
-   ```
+It excludes:
 
-3. **Check TypeScript types**:
-   ```bash
-   npm run lint
-   ```
+- ancestors, monuments, and lineage ancestors;
+- unknown references;
+- taxonomy-only similarity;
+- prompt/model “relevance” prose;
+- invariants that are not recorded as proven.
 
-4. **Build production bundle**:
-   ```bash
-   npm run build
-   ```
+A deterministic or server high-severity routing refusal suppresses Nearby Growth rather than allowing a suggestion layer to bypass the authority gate.
 
----
+### Human review remains the crossing
 
-## 📁 Repository Structure
+The UI renders an **Evidenced Nearby Growth** panel with lifecycle state, evidence reasons, and independent registry dates.
 
-```text
-├── src/
-│   ├── components/
-│   │   ├── ArchitecturalMemoryPanel.tsx # Architectural laws & drift checker
-│   │   ├── CommandBridgeOverview.tsx    # Mission control & metrics
-│   │   ├── PipelineVisualizer.tsx       # Interactive 9-stage visual journey
-│   │   ├── IdeaStream.tsx                # Multi-format input & voice stream
-│   │   ├── PasteConversationModal.tsx   # Chat transcript importer
-│   │   ├── ProposalGenerator.tsx        # Spec & prompt compiler
-│   │   ├── DispatchQueue.tsx            # Human review gatekeeper queue
-│   │   ├── ExecutionReceipts.tsx        # Cryptographic execution log
-│   │   └── RepositoryContextBrowser.tsx # Ecosystem repo documentation
-│   ├── data/
-│   │   └── mockCollectiveRepos.ts       # Connected repo boundaries & issues
-│   ├── services/
-│   │   └── compilerEngine.ts            # Intent compiler & boundary auditor
-│   ├── types/
-│   │   └── founderNode.ts               # Core domain TypeScript models
-│   └── App.tsx                          # Primary console layout
-├── package.json
-└── README.md
+`Review this door` re-enters ordinary compilation. It does **not**:
+
+- queue work;
+- dispatch a payload;
+- create a GitHub issue or pull request;
+- mutate a destination repository;
+- grant authority to the suggested project.
+
+Tests also prove that server/model output cannot substitute its own Nearby Growth target.
+
+### Repository boot is real again
+
+The current mainline includes a normal Vite/React entrypoint, so the advertised application build can actually run. The merged Pollen Scout proof passed 29/29 tests and a production Vite build at its verified PR head.
+
+## What this README no longer claims
+
+Earlier concept text described voice transcription, OCR, autonomous dispatch queues, and cryptographically signed execution receipts as if they were already implemented product capabilities.
+
+They are not part of the presently proven surface and are therefore not advertised here as current behavior.
+
+`PollenReceipt` is also explicitly deferred.
+
+## Run it
+
+```bash
+npm install
+npm test
+npm run build
+npm run dev
 ```
+
+Machine-readable snapshot: [`PROJECT_STATUS.json`](PROJECT_STATUS.json).
+
+## Current direction
+
+The next useful growth is not “more automation.” It is better lawful adjacency: letting a human see which neighboring project doors are evidenced, why they are evidenced, and then deliberately re-enter the normal authority path if one deserves attention.
+
+Relevance affects visibility only. Authority stays with the project that owns the action.
