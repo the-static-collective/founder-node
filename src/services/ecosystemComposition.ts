@@ -135,10 +135,33 @@ export function deriveEcosystemComposition(input: {
   const anchors = [...new Set(input.routedProjectIds)].sort()
     .map(id => byId.get(id)).filter((p): p is RepositoryContext => !!p && viableForDraft(p));
   const anchorIds = new Set(anchors.map(p => p.id));
+  const verifiedDoorEvidence = (candidateId: string, evidence: NearbyGrowthEvidence): boolean => {
+    if (evidence.kind === 'typed-relation') {
+      const source = byId.get(evidence.sourceProjectId);
+      return !!source && (
+        (evidence.direction === 'outbound' && anchorIds.has(source.id) && evidence.targetProjectId === candidateId) ||
+        (evidence.direction === 'inbound' && source.id === candidateId && anchorIds.has(evidence.targetProjectId))
+      ) && source.relations.some(relation =>
+        relation.type === evidence.relationType && relation.target === evidence.targetProjectId
+      );
+    }
+    const invariant = input.invariants.find(item => item.id === evidence.invariantId && item.maturity === 'proven');
+    return !!invariant && invariant.owner === evidence.ownerProjectId &&
+      invariant.owner === candidateId && invariant.consumers.some(id => anchorIds.has(id)) ||
+      !!invariant && invariant.owner === evidence.ownerProjectId &&
+      anchorIds.has(invariant.owner) && invariant.consumers.includes(candidateId) ||
+      !!invariant && invariant.owner === evidence.ownerProjectId &&
+      invariant.consumers.includes(candidateId) && invariant.consumers.some(id => anchorIds.has(id));
+  };
   const candidates = input.nearbyGrowth.doors
-    .map(door => ({ door, project: byId.get(door.projectId) }))
-    .filter((entry): entry is { door: typeof input.nearbyGrowth.doors[number]; project: RepositoryContext } =>
-      !!entry.project && viableForDraft(entry.project) && !anchorIds.has(entry.project.id) && entry.door.evidence.length > 0
+    .map(door => ({ door, project: byId.get(door.projectId),
+      validEvidence: door.evidence.filter(item => verifiedDoorEvidence(door.projectId, item)) }))
+    .filter((entry): entry is {
+      door: typeof input.nearbyGrowth.doors[number];
+      project: RepositoryContext;
+      validEvidence: NearbyGrowthEvidence[];
+    } => !!entry.project && viableForDraft(entry.project) &&
+      !anchorIds.has(entry.project.id) && entry.validEvidence.length > 0
     );
 
   // Two nearby doors yield a multi-organ specimen; one door still yields a
@@ -152,7 +175,7 @@ export function deriveEcosystemComposition(input: {
         anchorProjectIds: selectedAnchors.map(p => p.id),
         participants: [
           ...selectedAnchors.map(p => ({ ...nodeOf(p), evidence: [] as NearbyGrowthEvidence[] })),
-          ...selectedNeighbors.map(({ project, door }) => ({ ...nodeOf(project), evidence: door.evidence }))
+          ...selectedNeighbors.map(({ project, validEvidence }) => ({ ...nodeOf(project), evidence: validEvidence }))
         ],
         registryWitness: input.registryWitness,
         unknowns: [
