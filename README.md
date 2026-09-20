@@ -56,6 +56,17 @@ Tests also prove that server/model output cannot substitute its own Nearby Growt
 
 The current mainline includes a normal Vite/React entrypoint, so the advertised application build can actually run. The merged Pollen Scout proof passed 29/29 tests and a production Vite build at its verified PR head.
 
+
+## Ecosystem Composition v0.1 — proposal-only development slice
+
+Founder Node now offers a bounded **Ecosystem Composition** view after a successful, authority-gated compilation. The map distinguishes recorded typed relationships from proven shared invariants. A composition draft uses only evidenced Pollen Scout neighbors, independently checked against the registry, with at most two origin projects and two nearby participants.
+
+The new **Copy Workbench inspection descriptor** button copies reviewable JSON for human-mediated inspection. Workbench does **not** yet consume this schema, accept the handoff, check local readiness, or execute anything through it. Origin project, participating projects and the local workbench retain separate authority. The descriptor explicitly says `executionAuthorized: false`, `localReadiness: unknown`, and `compatibility: unverified`.
+
+A separate **Record this compiled intent locally** action stores an opted-in, browser-local witness of the original founder words and the compiler's interpretation, without rewriting older observations. Browser localStorage is not an append-only secure ledger, and these observations are not canon or project-native receipts.
+
+The original Pollen Scout milestone and registry routing gate remain intact. The legacy simulated dispatch UI is unchanged and does not establish actual external execution. See [the bounded v0.1 specification](docs/superpowers/specs/2026-09-19-ecosystem-composition-v01.md).
+
 ## What this README no longer claims
 
 Earlier concept text described voice transcription, OCR, autonomous dispatch queues, and cryptographically signed execution receipts as if they were already implemented product capabilities.
