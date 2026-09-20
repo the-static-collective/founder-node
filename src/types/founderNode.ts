@@ -1,4 +1,5 @@
 import type { NearbyGrowthResult } from './nearbyGrowth';
+import type { EcosystemComposition } from '../services/ecosystemComposition';
 
 export type RepositoryId = string;
 
@@ -168,4 +169,5 @@ export interface CompiledIdea {
   architecturalCheck: ArchitecturalCheckResult;
   proposals: Proposal[];
   nearbyGrowth?: NearbyGrowthResult;
+  ecosystemComposition?: EcosystemComposition;
 }

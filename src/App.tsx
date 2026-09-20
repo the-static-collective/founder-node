@@ -10,6 +10,9 @@ import { DispatchQueue } from './components/DispatchQueue';
 import { ExecutionReceipts } from './components/ExecutionReceipts';
 import { ArchitecturalRulesModal } from './components/ArchitecturalRulesModal';
 import { NearbyGrowthPanel } from './components/NearbyGrowthPanel';
+import { EcosystemCompositionPanel } from './components/EcosystemCompositionPanel';
+import { appendFounderIntentWitness, makeFounderIntentWitness } from './services/ecosystemComposition';
+import type { FounderIntentWitness } from './services/ecosystemComposition';
 
 import {
   CompiledIdea,
@@ -25,6 +28,7 @@ const STORAGE_KEY_IDEAS = 'founder_node_ideas_v1';
 const STORAGE_KEY_PROPOSALS = 'founder_node_proposals_v1';
 const STORAGE_KEY_QUEUE = 'founder_node_queue_v1';
 const STORAGE_KEY_RECEIPTS = 'founder_node_receipts_v1';
+const STORAGE_KEY_INTENT_WITNESSES = 'founder_node_intent_witnesses_v01';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
@@ -71,6 +75,16 @@ export default function App() {
     }
   });
 
+  const [intentWitnesses, setIntentWitnesses] = useState<FounderIntentWitness[]>(() => {
+    try {
+      const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY_INTENT_WITNESSES) || '[]');
+      return Array.isArray(parsed) ? parsed.filter((item): item is FounderIntentWitness =>
+        !!item && typeof item === 'object' && item.schema === 'static-collective.founder-node.intent-witness.v0.1'
+        && typeof item.id === 'string' && typeof item.compiledIdeaId === 'string' && typeof item.rawIntent === 'string'
+      ) : [];
+    } catch { return []; }
+  });
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -95,6 +109,20 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_RECEIPTS, JSON.stringify(receipts));
   }, [receipts]);
+
+  const handleRecordIntent = () => {
+    if (!lastCompiledIdea || lastCompiledIdea.architecturalCheck.routingBlocked) return;
+    try {
+      const witness = makeFounderIntentWitness(lastCompiledIdea,
+        `intent-${lastCompiledIdea.id}`, new Date().toISOString());
+      const updated = appendFounderIntentWitness(intentWitnesses, witness);
+      localStorage.setItem(STORAGE_KEY_INTENT_WITNESSES, JSON.stringify(updated));
+      setIntentWitnesses(updated);
+      showToast('Local founder-intent witness recorded. Not a signed or project-native receipt.');
+    } catch (error) {
+      showToast(`Intent witness not recorded: ${String(error)}`);
+    }
+  };
 
   const handleCompile = async (
     rawText: string,
@@ -279,6 +307,19 @@ export default function App() {
                   memoryEnabled={memoryEnabled}
                 />
               </div>
+            )}
+
+            {lastCompiledIdea?.ecosystemComposition && !lastCompiledIdea.architecturalCheck.routingBlocked && (
+              <EcosystemCompositionPanel
+                composition={lastCompiledIdea.ecosystemComposition}
+                recordedIntent={intentWitnesses.find(w => w.compiledIdeaId === lastCompiledIdea.id)}
+                onRecordIntent={handleRecordIntent}
+                onCopyHandoff={value => {
+                  navigator.clipboard.writeText(value)
+                    .then(() => showToast('Inspection descriptor copied. Workbench has not received or accepted it.'))
+                    .catch(() => showToast('Clipboard unavailable. No handoff occurred.'));
+                }}
+              />
             )}
 
             {lastCompiledIdea?.nearbyGrowth && !lastCompiledIdea.architecturalCheck.routingBlocked && (
