@@ -101,3 +101,19 @@ test('no evidenced neighbor means no handoffable draft', () => {
   assert.equal(result.draft, null);
   assert.deepEqual(result.nodes.map(n => n.projectId), ['solo']);
 });
+
+test('spoofed externally supplied Pollen door is not admitted without actual registry evidence', () => {
+  const route = makeRepository('route');
+  const candidate = makeRepository('candidate');
+  const result = deriveEcosystemComposition({
+    routedProjectIds: ['route'], projects: [route, candidate], invariants: [],
+    registryWitness: witness,
+    nearbyGrowth: {
+      doors: [{ projectId: 'candidate', repository: candidate.repository, role: candidate.role, status: 'active',
+        evidence: [{ kind: 'typed-relation', relationType: 'DEPENDS_ON', direction: 'outbound',
+          sourceProjectId: 'route', targetProjectId: 'candidate' }] }],
+      registryWitness: witness, diagnostics: []
+    }
+  });
+  assert.equal(result.draft, null);
+});
